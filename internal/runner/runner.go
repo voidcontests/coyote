@@ -52,7 +52,7 @@ func Flush(filebase string) error {
 func getCompilationCommand(lang, filebase string) string {
 	switch lang {
 	case language.C:
-		return fmt.Sprintf(`gcc -o %s.out /sandbox/%s.c`, filebase, filebase)
+		return fmt.Sprintf(`gcc -std=c17 -o %s.out /sandbox/%s.c`, filebase, filebase)
 	}
 
 	return ""
