@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -63,7 +62,7 @@ func (a *App) Run(ctx context.Context) {
 			for {
 				select {
 				case <-ctx.Done():
-					slog.Info("worker stopped via context")
+					slog.Debug("worker stopped via context")
 					return
 				default:
 					submission, err := repo.Submission.GetPending(ctx)
@@ -107,7 +106,7 @@ type FailedTest struct {
 }
 
 func ExecuteSolution(ctx context.Context, r *repository.Repository, submission models.Submission) error {
-	slog.Info("testing submission", slog.Int("id", int(submission.ID)))
+	slog.Debug("running submission", slog.Int("id", int(submission.ID)))
 
 	l, ok := language.Get(submission.Language)
 	if !ok {
@@ -118,14 +117,12 @@ func ExecuteSolution(ctx context.Context, r *repository.Repository, submission m
 	filepath := fmt.Sprintf("./files/%s.%s", filebase, l.Extension)
 	source, err := os.Create(filepath)
 	if err != nil {
-		log.Printf("failed to create file: %v", err)
 		return err
 	}
 	defer source.Close()
 	defer runner.Flush(filebase)
 
 	if _, err := source.WriteString(submission.Code); err != nil {
-		log.Printf("failed to write to file: %v", err)
 		return err
 	}
 
@@ -133,7 +130,6 @@ func ExecuteSolution(ctx context.Context, r *repository.Repository, submission m
 	if l.Kind == language.Compiled {
 		report, err = runner.Compile(filebase, l.Name)
 		if err != nil {
-			log.Printf("failed to compile solution: %v", err)
 			return err
 		}
 
@@ -156,7 +152,6 @@ func ExecuteSolution(ctx context.Context, r *repository.Repository, submission m
 	for _, tc := range tcs {
 		report, err = runner.Exec(filebase, l.Name, 2000, tc.Input)
 		if err != nil {
-			log.Printf("failed to execute solution: %v", err)
 			return err
 		}
 

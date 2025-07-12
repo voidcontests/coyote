@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"runner/internal/lib/sl"
 	"runner/internal/runner/language"
 )
 
@@ -88,7 +89,7 @@ func isolate(command string) (Report, error) {
 			r.ExitCode = ee.ExitCode()
 			r.Stderr = string(ee.Stderr)
 		} else {
-			slog.Error("can't execute command", slog.String("error", err.Error()))
+			slog.Error("can't execute command", sl.Err(err))
 			return Report{}, err
 		}
 	}

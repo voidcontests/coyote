@@ -3,6 +3,7 @@ package config
 import (
 	"log/slog"
 	"os"
+	"runner/internal/lib/sl"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
@@ -48,7 +49,7 @@ func MustLoad() *Config {
 	var config Config
 
 	if err = cleanenv.ReadConfig(configPath, &config); err != nil {
-		slog.Error("cannot read config", slog.String("error", err.Error()))
+		slog.Error("cannot read config", sl.Err(err))
 		os.Exit(1)
 	}
 
