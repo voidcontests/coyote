@@ -30,9 +30,7 @@ func New(config *config.Config) *App {
 	return &App{config}
 }
 
-func (a *App) Run() {
-	ctx := context.Background()
-
+func (a *App) Run(ctx context.Context) {
 	var logger *slog.Logger
 	switch a.config.Env {
 	case config.EnvDevelopment, config.EnvLocal:
@@ -92,14 +90,6 @@ func (a *App) Run() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	<-quit
-
-	slog.Info("runner: shutting down...")
-
-	err = repo.Shutdown()
-	if err != nil {
-		slog.Error("runner: error occurred on postgresql shutting down", sl.Err(err))
-		os.Exit(1)
-	}
 
 	slog.Info("runner: stopped")
 }

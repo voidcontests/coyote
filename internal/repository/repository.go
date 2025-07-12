@@ -4,23 +4,19 @@ import (
 	"runner/internal/repository/postgres/problem"
 	"runner/internal/repository/postgres/submission"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {
-	db         *sqlx.DB
+	pool       *pgxpool.Pool
 	Submission *submission.Postgres
 	Problem    *problem.Postgres
 }
 
-func New(db *sqlx.DB) *Repository {
+func New(pool *pgxpool.Pool) *Repository {
 	return &Repository{
-		db:         db,
-		Submission: submission.New(db),
-		Problem:    problem.New(db),
+		pool:       pool,
+		Submission: submission.New(pool),
+		Problem:    problem.New(pool),
 	}
-}
-
-func (r *Repository) Shutdown() error {
-	return r.db.Close()
 }

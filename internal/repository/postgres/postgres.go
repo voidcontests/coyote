@@ -1,24 +1,30 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"runner/internal/config"
 
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func New(c *config.Postgres) (*sqlx.DB, error) {
-	db, err := sqlx.Open("postgres", fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=%s",
-		c.Host, c.Port, c.User, c.Name, c.Password, c.ModeSSL))
+func New(c *config.Postgres) (*pgxpool.Pool, error) {
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", c.User, c.Password, c.Host, c.Port, c.Name, c.ModeSSL)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dbpool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = db.Ping(); err != nil {
+	if err := dbpool.Ping(ctx); err != nil {
+		dbpool.Close()
 		return nil, err
 	}
 
-	return db, err
+	return dbpool, nil
 }

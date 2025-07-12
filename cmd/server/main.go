@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
@@ -17,6 +18,7 @@ func main() {
 
 	c := config.MustLoad()
 	a := app.New(c)
+	ctx := context.Background()
 
-	a.Run()
+	a.Run(ctx)
 }
