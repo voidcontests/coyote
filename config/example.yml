@@ -1,0 +1,9 @@
+env: "local" # local, dev or prod
+
+postgres:
+    host: "localhost"
+    port: "1337"
+    user: "postgres"
+    name: "postgres"
+    password: "unhackable password"
+    sslmode: "disable"

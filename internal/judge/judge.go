@@ -3,6 +3,8 @@ package judge
 import "strings"
 
 const (
+	VerdictPending           = "pending"
+	VerdictRunning           = "running"
 	VerdictOK                = "ok"
 	VerdictWrongAnswer       = "wrong_answer"
 	VerdictRuntimeError      = "runtime_error"
@@ -10,8 +12,7 @@ const (
 	VerdictTimeLimitExceeded = "time_limit_exceeded"
 )
 
-const SUFFIX = "\n"
-
 func Match(actual, expected string) bool {
-	return strings.TrimSuffix(actual, SUFFIX) == strings.TrimSuffix(expected, SUFFIX)
+	suffix := "\n"
+	return strings.TrimSuffix(actual, suffix) == strings.TrimSuffix(expected, suffix)
 }

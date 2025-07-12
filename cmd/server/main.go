@@ -1,16 +1,12 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"log/slog"
-	"net/http"
 	"os"
 
-	"runner/internal/app/handler"
+	"runner/internal/config"
+	"runner/internal/pkg/app"
 )
-
-const PORT = 21003
 
 func main() {
 	err := os.MkdirAll("files", 0755)
@@ -19,13 +15,8 @@ func main() {
 		return
 	}
 
-	mux := http.NewServeMux()
+	c := config.MustLoad()
+	a := app.New(c)
 
-	mux.HandleFunc("GET /healthcheck", handler.Healthcheck)
-	mux.HandleFunc("POST /test", handler.TestSolution)
-
-	addr := fmt.Sprintf(":%d", PORT)
-	log.Printf("listening on %s", addr)
-
-	http.ListenAndServe(addr, mux)
+	a.Run()
 }
