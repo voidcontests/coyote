@@ -73,7 +73,6 @@ func isolate(command string) (Report, error) {
 	cmd := exec.Command("docker", "run", "--rm",
 		"--cpus=0.5",
 		"--memory=128m",
-		"--memory-swap=256m",
 		"--pids-limit=50",
 		"--read-only",
 		"--network=none",
