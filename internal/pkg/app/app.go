@@ -166,6 +166,10 @@ func executeSolution(ctx context.Context, r *repository.Repository, submission m
 		}
 	}
 
+	if summary.PassedTestsCount == len(tcs) {
+		summary.Verdict = judge.VerdictOK
+	}
+
 	err = r.Submission.UpdateVerdict(ctx, submission.ID, summary.Verdict, int32(summary.PassedTestsCount), summary.Stderr)
 	if err != nil {
 		return fmt.Errorf("update verdict: %w", err)
