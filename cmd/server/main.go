@@ -1,31 +1,25 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"context"
 	"log/slog"
-	"net/http"
 	"os"
 
-	"runner/internal/app/handler"
+	"runner/internal/config"
+	"runner/internal/lib/sl"
+	"runner/internal/pkg/app"
 )
-
-const PORT = 21003
 
 func main() {
 	err := os.MkdirAll("files", 0755)
 	if err != nil {
-		slog.Error("failed to create `./files/` directory", slog.Any("error", err))
+		slog.Error("failed to create `./files/` directory", sl.Err(err))
 		return
 	}
 
-	mux := http.NewServeMux()
+	c := config.MustLoad()
+	a := app.New(c)
+	ctx := context.Background()
 
-	mux.HandleFunc("GET /healthcheck", handler.Healthcheck)
-	mux.HandleFunc("POST /test", handler.TestSolution)
-
-	addr := fmt.Sprintf(":%d", PORT)
-	log.Printf("listening on %s", addr)
-
-	http.ListenAndServe(addr, mux)
+	a.Run(ctx)
 }

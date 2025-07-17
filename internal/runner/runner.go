@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"runner/internal/lib/sl"
 	"runner/internal/runner/language"
 )
 
@@ -52,7 +53,7 @@ func Flush(filebase string) error {
 func getCompilationCommand(lang, filebase string) string {
 	switch lang {
 	case language.C:
-		return fmt.Sprintf(`gcc -std=c17 -o %s.out /sandbox/%s.c`, filebase, filebase)
+		return fmt.Sprintf(`gcc -std=c17 -Wall -Wextra -Werror -pedantic -o %s.out /sandbox/%s.c`, filebase, filebase)
 	}
 
 	return ""
@@ -61,9 +62,9 @@ func getCompilationCommand(lang, filebase string) string {
 func getExecuteCommand(lang, filebase, input string, timeLimitMS int) string {
 	switch lang {
 	case language.C:
-		return fmt.Sprintf(`echo "%s" | timeout %0.3fs /sandbox/%s.out`, input, float64(timeLimitMS)/1000, filebase)
+		return fmt.Sprintf(`echo "%s" | timeout %ds /sandbox/%s.out`, input, timeLimitMS/1000, filebase)
 	case language.Python:
-		return fmt.Sprintf(`echo "%s" | timeout %0.3fs python3 /sandbox/%s.py`, input, float64(timeLimitMS)/1000, filebase)
+		return fmt.Sprintf(`echo "%s" | timeout %ds python3 /sandbox/%s.py`, input, timeLimitMS/1000, filebase)
 	}
 
 	return ""
@@ -73,12 +74,11 @@ func isolate(command string) (Report, error) {
 	cmd := exec.Command("docker", "run", "--rm",
 		"--cpus=0.5",
 		"--memory=128m",
-		"--memory-swap=256m",
 		"--pids-limit=50",
 		"--read-only",
 		"--network=none",
 		"-v", "./files:/sandbox",
-		"jus1d/void-runner:latest",
+		"runner:latest",
 		"bash", "-c", command,
 	)
 
@@ -89,7 +89,7 @@ func isolate(command string) (Report, error) {
 			r.ExitCode = ee.ExitCode()
 			r.Stderr = string(ee.Stderr)
 		} else {
-			slog.Error("can't execute command", slog.String("error", err.Error()))
+			slog.Error("can't execute command", sl.Err(err))
 			return Report{}, err
 		}
 	}
