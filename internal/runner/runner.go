@@ -78,7 +78,7 @@ func isolate(command string) (Report, error) {
 		"--read-only",
 		"--network=none",
 		"-v", "./files:/sandbox",
-		"runner:latest",
+		"jus1d/void-runner:latest",
 		"bash", "-c", command,
 	)
 
