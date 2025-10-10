@@ -40,8 +40,8 @@ func (a *App) Run(ctx context.Context) {
 	repository := repository.New(db)
 
 	rc := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
-		Password: "",
+		Addr:     "void-redis:6379",
+		Password: "sexypass",
 		DB:       0,
 	})
 

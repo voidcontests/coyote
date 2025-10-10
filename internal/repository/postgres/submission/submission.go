@@ -19,8 +19,7 @@ func (p *Postgres) UpdateVerdict(ctx context.Context, id int32, verdict string, 
 	query := `UPDATE submissions
 		SET verdict = $1,
 			passed_tests_count = $2,
-			stderr = $3,
-			locked_at = NULL
+			stderr = $3
 		WHERE id = $4`
 	_, err := p.pool.Exec(ctx, query, verdict, passedTestsCount, stderr, id)
 	return err
@@ -37,13 +36,13 @@ func (p *Postgres) GetPending(ctx context.Context) (models.Submission, error) {
 	query := `WITH next_jobs AS (
 			SELECT id
 			FROM submissions
-			WHERE verdict = 'pending' AND locked_at IS NULL
+			WHERE verdict = 'pending'
 			ORDER BY created_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
 		)
 		UPDATE submissions
-		SET verdict = 'running', locked_at = now()
+		SET verdict = 'running'
 		FROM next_jobs
 		WHERE submissions.id = next_jobs.id
 		RETURNING submissions.*`

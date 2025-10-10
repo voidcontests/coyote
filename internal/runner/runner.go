@@ -43,7 +43,7 @@ func Exec(filebase, lang string, timeLimitMS int, input string) (Report, error) 
 
 // Flush removes all files by filebase - request timestamp
 func Flush(filebase string) error {
-	command := fmt.Sprintf(`find /sandbox -type f -name "%s.*" -delete`, filebase)
+	command := fmt.Sprintf(`find /app/sandbox -type f -name "%s.*" -delete`, filebase)
 
 	var err error
 	_, err = isolate(command)
@@ -53,7 +53,7 @@ func Flush(filebase string) error {
 func getCompilationCommand(lang, filebase string) string {
 	switch lang {
 	case language.C:
-		return fmt.Sprintf(`gcc -std=c17 -Wall -Wextra -Werror -pedantic -o %s.out /sandbox/%s.c`, filebase, filebase)
+		return fmt.Sprintf(`gcc -std=c17 -Wall -Wextra -Werror -pedantic -o /app/sandbox/%s.out /app/sandbox/%s.c`, filebase, filebase)
 	}
 
 	return ""
@@ -62,9 +62,9 @@ func getCompilationCommand(lang, filebase string) string {
 func getExecuteCommand(lang, filebase, input string, timeLimitMS int) string {
 	switch lang {
 	case language.C:
-		return fmt.Sprintf(`echo "%s" | timeout %ds /sandbox/%s.out`, input, timeLimitMS/1000, filebase)
+		return fmt.Sprintf(`echo "%s" | timeout %ds /app/sandbox/%s.out`, input, timeLimitMS/1000, filebase)
 	case language.Python:
-		return fmt.Sprintf(`echo "%s" | timeout %ds python3 /sandbox/%s.py`, input, timeLimitMS/1000, filebase)
+		return fmt.Sprintf(`echo "%s" | timeout %ds python3 /app/sandbox/%s.py`, input, timeLimitMS/1000, filebase)
 	}
 
 	return ""
@@ -77,7 +77,7 @@ func isolate(command string) (Report, error) {
 		"--pids-limit=50",
 		"--read-only",
 		"--network=none",
-		"-v", "./files:/sandbox",
+		"-v", "./sandbox:/app/sandbox",
 		"jus1d/void-runner:latest",
 		"bash", "-c", command,
 	)

@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	err := os.MkdirAll("files", 0755)
+	err := os.MkdirAll("sandbox", 0755)
 	if err != nil {
 		slog.Error("failed to create `./files/` directory", sl.Err(err))
 		return

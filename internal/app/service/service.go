@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"runner/internal/judge"
+	"runner/internal/lib/sl"
 	"runner/internal/repository"
 	"runner/internal/repository/models"
 	"runner/internal/runner"
@@ -65,7 +66,10 @@ func (s *Service) Listen(ctx context.Context) error {
 				continue
 			}
 
-			s.executeSolution(ctx, submission)
+			err := s.executeSolution(ctx, submission)
+			if err != nil {
+				slog.Error("can't execute solution", sl.Err(err))
+			}
 		}
 	}
 }
@@ -79,7 +83,7 @@ func (s *Service) executeSolution(ctx context.Context, submission models.Submiss
 	}
 
 	filebase := fmt.Sprintf("%d", time.Now().UnixNano())
-	filepath := fmt.Sprintf("./files/%s.%s", filebase, l.Extension)
+	filepath := fmt.Sprintf("./sandbox/%s.%s", filebase, l.Extension)
 	if err := os.WriteFile(filepath, []byte(submission.Code), 0644); err != nil {
 		return fmt.Errorf("write code to file: %w", err)
 	}
