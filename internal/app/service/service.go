@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"runner/internal/judge"
 	"runner/internal/lib/sl"
 	"runner/internal/repository"
 	"runner/internal/repository/models"
 	"runner/internal/runner"
 	"runner/internal/runner/language"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -83,25 +83,10 @@ func (s *Service) executeSolution(ctx context.Context, submission models.Submiss
 	}
 
 	filebase := fmt.Sprintf("%d", time.Now().UnixNano())
-	filepath := fmt.Sprintf("./sandbox/%s.%s", filebase, l.Extension)
-	if err := os.WriteFile(filepath, []byte(submission.Code), 0644); err != nil {
-		return fmt.Errorf("write code to file: %w", err)
-	}
 	defer runner.Flush(filebase)
 
 	var report runner.Report
 	var err error
-
-	if l.Kind == language.Compiled {
-		report, err = runner.Compile(filebase, l.Name)
-		if err != nil {
-			return fmt.Errorf("compilation error: %w", err)
-		}
-		if report.ExitCode != 0 {
-			_ = s.repository.Submission.UpdateVerdict(ctx, submission.ID, judge.VerdictCompilationError, 0, report.Stderr)
-			return nil
-		}
-	}
 
 	tcs, err := s.repository.Problem.GetTestCases(ctx, submission.ProblemID)
 	if err != nil {
@@ -112,9 +97,17 @@ func (s *Service) executeSolution(ctx context.Context, submission models.Submiss
 	failedTest := FailedTest{}
 
 	for _, tc := range tcs {
-		report, err = runner.Exec(filebase, l.Name, 2000, tc.Input)
+		report, err = runner.Exec(filebase, l.Name, submission.Code, 2000, tc.Input)
 		if err != nil {
 			return fmt.Errorf("execution error: %w", err)
+		}
+
+		if l.Kind == language.Compiled && report.ExitCode != 0 && report.Stderr != "" {
+			if strings.Contains(report.Stderr, "error:") || strings.Contains(report.Stderr, "fatal error:") {
+				summary.Verdict = judge.VerdictCompilationError
+				summary.Stderr = report.Stderr
+				break
+			}
 		}
 
 		if report.ExitCode == 124 {
