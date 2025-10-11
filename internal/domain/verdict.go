@@ -1,6 +1,4 @@
-package judge
-
-import "strings"
+package domain
 
 const (
 	VerdictPending           = "pending"
@@ -11,8 +9,3 @@ const (
 	VerdictCompilationError  = "compilation_error"
 	VerdictTimeLimitExceeded = "time_limit_exceeded"
 )
-
-func Match(actual, expected string) bool {
-	suffix := "\n"
-	return strings.TrimSuffix(actual, suffix) == strings.TrimSuffix(expected, suffix)
-}

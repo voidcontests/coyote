@@ -8,6 +8,8 @@ services:
       - ./config:/app/config
       - ./sandbox:/app/sandbox
       - ~/.orbstack/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
     restart: unless-stopped
     networks:
       - void-network
