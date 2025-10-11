@@ -6,7 +6,7 @@ services:
       - CONFIG_PATH=/app/config/dev.yaml
     volumes:
       - ./config:/app/config
-      - ~/.orbstack/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8080:8080"
     restart: unless-stopped
