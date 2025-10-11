@@ -6,7 +6,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o ./build/scheduler ./cmd/scheduler
+RUN go build -o ./build/coyote ./cmd/coyote
 
 # Lightweight docker container with binaries only
 FROM alpine:latest
@@ -18,4 +18,4 @@ RUN apk add --no-cache docker-cli
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/seccomp.json ./seccomp.json
 
-CMD ["./build/scheduler"]
+CMD ["./build/coyote"]
