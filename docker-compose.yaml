@@ -1,6 +1,6 @@
 services:
   coyote:
-    image: ghcr.io/voidcontests/coyote
+    image: ghcr.io/voidcontests/coyote:latest
     container_name: coyote
     environment:
       - CONFIG_PATH=/app/config/dev.yaml
