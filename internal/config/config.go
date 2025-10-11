@@ -3,7 +3,6 @@ package config
 import (
 	"log/slog"
 	"os"
-	"runner/internal/lib/sl"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
@@ -17,45 +16,55 @@ const (
 
 type Config struct {
 	Env      string   `yaml:"env" env-required:"true"`
+	HTTP     HTTP     `yaml:"http"`
 	Postgres Postgres `yaml:"postgres" env-required:"true"`
+	Redis    Redis    `yaml:"redis" env-required:"true"`
+	Runner   Runner   `yaml:"runner" env-required:"true"`
+}
+
+type HTTP struct {
+	Port string `yaml:"port" env-default:"7197"`
 }
 
 type Postgres struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	User     string `yaml:"user"`
-	Name     string `yaml:"name"`
-	Password string `yaml:"password"`
-	ModeSSL  string `yaml:"sslmode"`
+	Host     string `yaml:"host" env-required:"true"`
+	Port     string `yaml:"port" env-required:"true"`
+	User     string `yaml:"user" env-required:"true"`
+	Name     string `yaml:"name" env-required:"true"`
+	Password string `yaml:"password" env-required:"true"`
+	ModeSSL  string `yaml:"sslmode" env-required:"true"`
 }
 
-// MustLoad loads config to a new Config instance and return it
+type Redis struct {
+	Addr     string `yaml:"addr" env-required:"true"`
+	Password string `yaml:"password" env-required:"true"`
+	DB       int    `yaml:"db"`
+}
+
+type Runner struct {
+	DockerImage string `yaml:"docker_image" env-required:"true"`
+	Channel     string `yaml:"channel" env-required:"true"`
+}
+
 func MustLoad() *Config {
 	_ = godotenv.Load()
 
 	configPath := os.Getenv("CONFIG_PATH")
-
 	if configPath == "" {
-		slog.Error("missed CONFIG_PATH parameter")
+		slog.Error("CONFIG_PATH environment variable is not set")
 		os.Exit(1)
 	}
 
-	var err error
-	if _, err = os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		slog.Error("config file does not exist", slog.String("path", configPath))
 		os.Exit(1)
 	}
 
 	var config Config
-
-	if err = cleanenv.ReadConfig(configPath, &config); err != nil {
-		slog.Error("cannot read config", sl.Err(err))
+	if err := cleanenv.ReadConfig(configPath, &config); err != nil {
+		slog.Error("cannot read config", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
 	return &config
-}
-
-func Empty() *Config {
-	return &Config{}
 }

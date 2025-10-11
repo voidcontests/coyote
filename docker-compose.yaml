@@ -1,0 +1,19 @@
+services:
+  coyote:
+    image: ghcr.io/voidcontests/coyote
+    container_name: coyote
+    environment:
+      - CONFIG_PATH=/app/config/dev.yaml
+    volumes:
+      - ./config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "7197:7197"
+    restart: unless-stopped
+    networks:
+      - voidcontests
+
+networks:
+  voidcontests:
+    name: voidcontests
+    external: true
