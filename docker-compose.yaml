@@ -2,14 +2,20 @@ services:
   coyote:
     image: ghcr.io/voidcontests/coyote:latest
     container_name: void-coyote
+    restart: unless-stopped
     environment:
       - CONFIG_PATH=/app/config/dev.yaml
+    ports:
+      - "7197:7197"
     volumes:
       - ./config:/app/config
       - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "7197:7197"
-    restart: unless-stopped
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:7197/api/healthcheck || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
     networks:
       - voidcontests
 
