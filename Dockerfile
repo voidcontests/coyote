@@ -6,7 +6,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o ./build/coyote ./cmd/coyote
+RUN go build -a -ldflags="-w -s" -o ./build/coyote ./cmd/coyote
 
 # Lightweight docker container with binaries only
 FROM alpine:latest
