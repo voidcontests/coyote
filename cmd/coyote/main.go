@@ -16,6 +16,7 @@ import (
 	"runner/internal/repository/postgres"
 	"runner/internal/repository/redis"
 	"runner/internal/usecase/submission"
+	"runner/internal/version"
 	"runner/pkg/language"
 	"runner/pkg/logger"
 	"runner/pkg/matcher"
@@ -32,7 +33,7 @@ func main() {
 	log := logger.Setup(c.Env, logLevel)
 	slog.SetDefault(log)
 
-	slog.Info("runner: starting...", slog.String("env", c.Env))
+	slog.Info("runner: starting...", slog.String("env", c.Env), version.CommitAttr, version.BranchAttr)
 
 	pool, err := postgres.NewPool(c.Postgres)
 	if err != nil {
