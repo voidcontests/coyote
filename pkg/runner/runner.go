@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"runner/internal/domain"
+
+	"github.com/voidcontests/coyote/internal/domain"
 )
 
 type runner struct {

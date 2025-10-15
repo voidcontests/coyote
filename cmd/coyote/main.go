@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"runner/internal/config"
-	httpdelivery "runner/internal/delivery/http"
-	"runner/internal/delivery/queue"
-	"runner/internal/repository/postgres"
-	"runner/internal/repository/redis"
-	"runner/internal/usecase/submission"
-	"runner/internal/version"
-	"runner/pkg/language"
-	"runner/pkg/logger"
-	"runner/pkg/matcher"
-	"runner/pkg/runner"
+	"github.com/voidcontests/coyote/internal/config"
+	httpdelivery "github.com/voidcontests/coyote/internal/delivery/http"
+	"github.com/voidcontests/coyote/internal/delivery/queue"
+	"github.com/voidcontests/coyote/internal/repository/postgres"
+	"github.com/voidcontests/coyote/internal/repository/redis"
+	"github.com/voidcontests/coyote/internal/usecase/submission"
+	"github.com/voidcontests/coyote/internal/version"
+	"github.com/voidcontests/coyote/pkg/language"
+	"github.com/voidcontests/coyote/pkg/logger"
+	"github.com/voidcontests/coyote/pkg/matcher"
+	"github.com/voidcontests/coyote/pkg/runner"
 )
 
 func main() {

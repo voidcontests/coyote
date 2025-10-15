@@ -1,7 +1,7 @@
 package language
 
 import (
-	"runner/internal/domain"
+	"github.com/voidcontests/coyote/internal/domain"
 )
 
 type Provider struct {

@@ -9,8 +9,8 @@ RUN go mod download
 
 COPY . .
 RUN go build -a -ldflags="-w -s \
-    -X runner/internal/version.GIT_COMMIT=$(git rev-parse --short HEAD) \
-    -X runner/internal/version.GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)" \
+    -X github.com/voidcontests/coyote/internal/version.GIT_COMMIT=$(git rev-parse --short HEAD) \
+    -X github.com/voidcontests/coyote/internal/version.GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)" \
     -o build/coyote ./cmd/coyote
 
 # Lightweight docker container with binaries only

@@ -3,10 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"runner/internal/config"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/voidcontests/coyote/internal/config"
 )
 
 func NewPool(c config.Postgres) (*pgxpool.Pool, error) {

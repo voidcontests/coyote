@@ -1,6 +1,6 @@
-module runner
+module github.com/voidcontests/coyote
 
-go 1.23.0
+go 1.25.1
 
 require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0

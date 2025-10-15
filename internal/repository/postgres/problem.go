@@ -2,9 +2,9 @@ package postgres
 
 import (
 	"context"
-	"runner/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/voidcontests/coyote/internal/domain"
 )
 
 type ProblemRepository struct {

@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"runner/internal/config"
-	"runner/internal/domain"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/voidcontests/coyote/internal/config"
+	"github.com/voidcontests/coyote/internal/domain"
 )
 
 type MessageQueue struct {

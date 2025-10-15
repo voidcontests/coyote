@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"runner/internal/domain"
-	"runner/internal/usecase/submission"
-	"runner/pkg/logger"
+
+	"github.com/voidcontests/coyote/internal/domain"
+	"github.com/voidcontests/coyote/internal/usecase/submission"
+	"github.com/voidcontests/coyote/pkg/logger"
 )
 
 type Handler struct {

@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"runner/internal/domain"
 	"strings"
 	"time"
+
+	"github.com/voidcontests/coyote/internal/domain"
 )
 
 type Service struct {
