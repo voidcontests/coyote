@@ -12,7 +12,6 @@ type Submission struct {
 	Language         string
 	PassedTestsCount int32
 	Stderr           string
-	LockedAt         *time.Time
 	CreatedAt        time.Time
 }
 
