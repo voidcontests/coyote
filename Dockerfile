@@ -1,4 +1,7 @@
-FROM golang:1.25.1-alpine3.22 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine3.22 AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -8,7 +11,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -a -ldflags="-w -s \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -a -ldflags="-w -s \
     -X github.com/voidcontests/coyote/internal/version.GIT_COMMIT=$(git rev-parse --short HEAD) \
     -X github.com/voidcontests/coyote/internal/version.GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)" \
     -o build/coyote ./cmd/coyote
