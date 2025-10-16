@@ -4,7 +4,7 @@ services:
     container_name: void-coyote
     restart: unless-stopped
     environment:
-      - CONFIG_PATH=/app/config/dev.yaml
+      CONFIG_PATH: ${CONFIG_PATH}
     ports:
       - "7197:7197"
     volumes:

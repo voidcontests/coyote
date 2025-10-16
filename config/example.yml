@@ -1,4 +1,4 @@
-env: "locl" # local, dev or prod
+env: "local" # local, dev or prod
 
 http:
   port: "7197"
