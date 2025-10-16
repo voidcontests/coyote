@@ -5,26 +5,25 @@ import (
 	"fmt"
 	"time"
 
-	"runner/internal/config"
-
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/voidcontests/coyote/internal/config"
 )
 
-func New(c *config.Postgres) (*pgxpool.Pool, error) {
+func NewPool(c config.Postgres) (*pgxpool.Pool, error) {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", c.User, c.Password, c.Host, c.Port, c.Name, c.ModeSSL)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	dbpool, err := pgxpool.New(ctx, dsn)
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create pool: %w", err)
 	}
 
-	if err := dbpool.Ping(ctx); err != nil {
-		dbpool.Close()
-		return nil, err
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	return dbpool, nil
+	return pool, nil
 }

@@ -1,9 +1,21 @@
 env: "local" # local, dev or prod
 
+http:
+  port: "7197"
+
 postgres:
-    host: "localhost"
-    port: "1337"
-    user: "postgres"
-    name: "postgres"
-    password: "unhackable password"
-    sslmode: "disable"
+  host: "localhost"
+  port: "5432"
+  user: "postgres"
+  name: "postgres"
+  password: "password"
+  sslmode: "disable"
+
+redis:
+  addr: "localhost:6379"
+  password: "password"
+  db: 0
+
+runner:
+  docker_image: "ghcr.io/voidcontests/runner"
+  channel: "submissions"
