@@ -3,29 +3,28 @@ package domain
 import "context"
 
 type SubmissionRepository interface {
-	UpdateVerdict(ctx context.Context, id int32, verdict string, passedTestsCount int32, stderr string) error
-	CreateFailedTest(ctx context.Context, submissionID int32, input, expectedOutput, actualOutput string) error
-	GetPending(ctx context.Context) (Submission, error)
+	UpdateVerdict(context.Context, int32, string, int32, string) error
+	CreateFailedTest(context.Context, int32, string, string, string) error
 }
 
 type ProblemRepository interface {
-	GetTestCases(ctx context.Context, problemID int32) ([]TestCase, error)
+	GetTestCases(context.Context, int32) ([]TestCase, error)
 }
 
 type MessageQueue interface {
-	Subscribe(ctx context.Context, channel string) (<-chan Submission, error)
+	Subscribe(context.Context, string) (<-chan Submission, error)
 	Close() error
 }
 
 type Runner interface {
-	Execute(req ExecutionRequest) (ExecutionReport, error)
-	Cleanup(filebase string) error
+	Execute(ExecutionRequest) (ExecutionReport, error)
+	Cleanup(string) error
 }
 
 type LanguageProvider interface {
-	GetLanguage(name string) (Language, error)
+	GetLanguage(string) (Language, error)
 }
 
 type OutputMatcher interface {
-	Match(actual, expected string) bool
+	Match(string, string) bool
 }
