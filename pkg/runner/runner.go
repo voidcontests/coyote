@@ -37,13 +37,13 @@ func (r *runner) buildExecuteCommand(req domain.ExecutionRequest) string {
 	switch req.Language {
 	case domain.LanguageC:
 		return fmt.Sprintf(
-			`mkdir -p /tmp/sandbox && echo '%s' > /tmp/sandbox/%s.c && gcc -std=c17 -Wall -Wextra -Werror -pedantic -o /tmp/sandbox/%s.out /tmp/sandbox/%s.c && echo "%s" | timeout %ds /tmp/sandbox/%s.out`,
-			req.Code, req.Filebase, req.Filebase, req.Filebase, req.Input, req.TimeLimitMS/1000, req.Filebase,
+			`mkdir -p /tmp/sandbox && echo '%s' > /tmp/sandbox/%s.c && gcc -std=c17 -Wall -Wextra -Werror -pedantic -o /tmp/sandbox/%s.out /tmp/sandbox/%s.c && echo "%s" | /tmp/sandbox/%s.out`,
+			req.Code, req.Filebase, req.Filebase, req.Filebase, req.Input, req.Filebase,
 		)
 	case domain.LanguagePython:
 		return fmt.Sprintf(
-			`mkdir -p /tmp/sandbox && echo '%s' > /tmp/sandbox/%s.py && echo "%s" | timeout %ds python3 /tmp/sandbox/%s.py`,
-			req.Code, req.Filebase, req.Input, req.TimeLimitMS/1000, req.Filebase,
+			`mkdir -p /tmp/sandbox && echo '%s' > /tmp/sandbox/%s.py && echo "%s" | python3 /tmp/sandbox/%s.py`,
+			req.Code, req.Filebase, req.Input, req.Filebase,
 		)
 	default:
 		return ""

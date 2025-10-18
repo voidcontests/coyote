@@ -7,9 +7,8 @@ type ExecutionReport struct {
 }
 
 type ExecutionRequest struct {
-	Filebase    string
-	Language    string
-	Code        string
-	Input       string
-	TimeLimitMS int
+	Filebase string
+	Language string
+	Code     string
+	Input    string
 }
