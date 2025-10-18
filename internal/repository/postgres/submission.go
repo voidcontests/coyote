@@ -14,9 +14,15 @@ func NewSubmissionRepository(pool *pgxpool.Pool) *SubmissionRepository {
 	return &SubmissionRepository{pool: pool}
 }
 
-func (r *SubmissionRepository) UpdateVerdict(ctx context.Context, id int32, verdict string, passedTestsCount int32, stderr string) error {
+func (r *SubmissionRepository) SetResult(ctx context.Context, id int32, verdict string, passedTestsCount int32, stderr string) error {
 	query := `UPDATE submissions SET verdict = $1, passed_tests_count = $2, stderr = $3 WHERE id = $4`
 	_, err := r.pool.Exec(ctx, query, verdict, passedTestsCount, stderr, id)
+	return err
+}
+
+func (r *SubmissionRepository) UpdateVerdict(ctx context.Context, id int32, verdict string) error {
+	query := `UPDATE submissions SET verdict = $1 WHERE id = $2`
+	_, err := r.pool.Exec(ctx, query, verdict, id)
 	return err
 }
 

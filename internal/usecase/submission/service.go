@@ -31,6 +31,10 @@ func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemR
 func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submission) error {
 	slog.Debug("processing submission", slog.Int("submission_id", int(submission.ID)))
 
+	go func() {
+		s.submissionRepo.UpdateVerdict(ctx, submission.ID, domain.VerdictRunning)
+	}()
+
 	lang, err := s.languageProvider.GetLanguage(submission.Language)
 	if err != nil {
 		return fmt.Errorf("get language: %w", err)
@@ -51,7 +55,7 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		testCases,
 	)
 
-	err = s.submissionRepo.UpdateVerdict(ctx, submission.ID, verdict, int32(passedCount), stderr)
+	err = s.submissionRepo.SetResult(ctx, submission.ID, verdict, int32(passedCount), stderr)
 	if err != nil {
 		return fmt.Errorf("update verdict: %w", err)
 	}

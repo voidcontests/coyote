@@ -3,7 +3,8 @@ package domain
 import "context"
 
 type SubmissionRepository interface {
-	UpdateVerdict(context.Context, int32, string, int32, string) error
+	SetResult(context.Context, int32, string, int32, string) error
+	UpdateVerdict(context.Context, int32, string) error
 	CreateFailedTest(context.Context, int32, string, string, string) error
 }
 
