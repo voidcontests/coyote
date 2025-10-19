@@ -35,9 +35,9 @@ func (r *runner) Cleanup(filebase string) error {
 
 func (r *runner) buildExecuteCommand(e domain.ExecutionRequest) string {
 	switch e.Language {
-	case domain.LanguageC:
+	case domain.LanguageCPP:
 		return fmt.Sprintf(
-			`mkdir -p /tmp/sandbox && echo '%s' | base64 -d > /tmp/sandbox/%s.c && gcc -std=c17 -Wall -Wextra -Werror -pedantic -o /tmp/sandbox/%s.out /tmp/sandbox/%s.c && echo '%s' | base64 -d | /tmp/sandbox/%s.out`,
+			`mkdir -p /tmp/sandbox && echo '%s' | base64 -d > /tmp/sandbox/%s.cpp && g++ -std=c++17 -Wall -Wextra -Werror -o /tmp/sandbox/%s.out /tmp/sandbox/%s.cpp && echo '%s' | base64 -d | /tmp/sandbox/%s.out`,
 			e.CodeB64, e.Filebase, e.Filebase, e.Filebase, e.InputB64, e.Filebase,
 		)
 	case domain.LanguagePython:

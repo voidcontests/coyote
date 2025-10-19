@@ -11,10 +11,10 @@ type Provider struct {
 func NewProvider() *Provider {
 	return &Provider{
 		languages: map[string]domain.Language{
-			domain.LanguageC: {
-				Name:      domain.LanguageC,
+			domain.LanguageCPP: {
+				Name:      domain.LanguageCPP,
 				Kind:      domain.Compiled,
-				Extension: "c",
+				Extension: "cpp",
 			},
 			domain.LanguagePython: {
 				Name:      domain.LanguagePython,

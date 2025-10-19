@@ -15,7 +15,7 @@ const (
 )
 
 const (
-	LanguageC      = "c"
+	LanguageCPP    = "cpp"
 	LanguagePython = "python"
 )
 
