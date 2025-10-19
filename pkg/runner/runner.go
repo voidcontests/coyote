@@ -33,17 +33,17 @@ func (r *runner) Cleanup(filebase string) error {
 	return err
 }
 
-func (r *runner) buildExecuteCommand(req domain.ExecutionRequest) string {
-	switch req.Language {
+func (r *runner) buildExecuteCommand(e domain.ExecutionRequest) string {
+	switch e.Language {
 	case domain.LanguageC:
 		return fmt.Sprintf(
-			`mkdir -p /tmp/sandbox && echo '%s' > /tmp/sandbox/%s.c && gcc -std=c17 -Wall -Wextra -Werror -pedantic -o /tmp/sandbox/%s.out /tmp/sandbox/%s.c && echo "%s" | /tmp/sandbox/%s.out`,
-			req.Code, req.Filebase, req.Filebase, req.Filebase, req.Input, req.Filebase,
+			`mkdir -p /tmp/sandbox && echo '%s' | base64 -d > /tmp/sandbox/%s.c && gcc -std=c17 -Wall -Wextra -Werror -pedantic -o /tmp/sandbox/%s.out /tmp/sandbox/%s.c && echo '%s' | base64 -d | /tmp/sandbox/%s.out`,
+			e.CodeB64, e.Filebase, e.Filebase, e.Filebase, e.InputB64, e.Filebase,
 		)
 	case domain.LanguagePython:
 		return fmt.Sprintf(
-			`mkdir -p /tmp/sandbox && echo '%s' > /tmp/sandbox/%s.py && echo "%s" | python3 /tmp/sandbox/%s.py`,
-			req.Code, req.Filebase, req.Input, req.Filebase,
+			`mkdir -p /tmp/sandbox && echo '%s' | base64 -d > /tmp/sandbox/%s.py && echo '%s' | base64 -d | python3 /tmp/sandbox/%s.py`,
+			e.CodeB64, e.Filebase, e.InputB64, e.Filebase,
 		)
 	default:
 		return ""

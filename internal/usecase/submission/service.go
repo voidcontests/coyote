@@ -2,6 +2,7 @@ package submission
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -81,14 +82,12 @@ func (s *Service) executeTestCases(filebase string, lang domain.Language, code s
 	for _, tc := range testCases {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 
-		req := domain.ExecutionRequest{
+		report, err := s.executeWithTimeout(ctx, domain.ExecutionRequest{
 			Filebase: filebase,
 			Language: lang.Name,
-			Code:     code,
-			Input:    tc.Input,
-		}
-
-		report, err := s.executeWithTimeout(ctx, req)
+			CodeB64:  base64.StdEncoding.EncodeToString([]byte(code)),
+			InputB64: base64.StdEncoding.EncodeToString([]byte(tc.Input)),
+		})
 		cancel()
 
 		if err != nil {

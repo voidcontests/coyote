@@ -9,6 +9,6 @@ type ExecutionReport struct {
 type ExecutionRequest struct {
 	Filebase string
 	Language string
-	Code     string
-	Input    string
+	CodeB64  string
+	InputB64 string
 }
