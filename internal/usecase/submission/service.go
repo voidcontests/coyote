@@ -171,6 +171,7 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 			}, nil
 		}
 
+		// TODO: Introduce judge message for testing report
 		jr := judge.Tokens(pr.Stdout, tc.Output)
 		if jr.Verdict != verdict.OK {
 			return TestingReport{
