@@ -11,15 +11,15 @@ import (
 	"github.com/voidcontests/coyote/internal/domain/status"
 	"github.com/voidcontests/coyote/internal/domain/verdict"
 	"github.com/voidcontests/coyote/pkg/container"
+	"github.com/voidcontests/coyote/pkg/judge"
 	"github.com/voidcontests/coyote/pkg/language"
 	"github.com/voidcontests/coyote/pkg/logger"
-	"github.com/voidcontests/coyote/pkg/matcher"
 )
 
 type Service struct {
 	submissionRepo domain.SubmissionRepository
 	problemRepo    domain.ProblemRepository
-	client         *client.Client
+	client         *client.Client // TODO: Try to remove this direct dependency on *client.Client
 }
 
 func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemRepository, c *client.Client) *Service {
@@ -48,7 +48,7 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		return fmt.Errorf("failed to get test cases: %w", err)
 	}
 
-	r, err := s.TestSolution(ctx, submission.Code, l, tcs)
+	tr, err := s.TestSolution(ctx, submission.Code, l, tcs)
 	if err != nil {
 		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Completed); err != nil {
 			slog.Error("failed to test solution", logger.Err(err))
@@ -56,18 +56,18 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		return err
 	}
 
-	err = s.submissionRepo.SetResult(ctx, submission.ID, status.Completed, r.verdict, int32(r.passed), r.stderr)
+	err = s.submissionRepo.SetResult(ctx, submission.ID, status.Completed, tr.verdict, int32(tr.passed), tr.stderr)
 	if err != nil {
 		return fmt.Errorf("update verdict: %w", err)
 	}
 
-	if r.failed != nil {
+	if tr.failed != nil {
 		err = s.submissionRepo.CreateFailedTest(
 			ctx,
 			submission.ID,
-			r.failed.Input,
-			r.failed.ExpectedOutput,
-			r.failed.ActualOutput,
+			tr.failed.Input,
+			tr.failed.ExpectedOutput,
+			tr.failed.ActualOutput,
 		)
 		if err != nil {
 			return fmt.Errorf("save failed test: %w", err)
@@ -171,10 +171,10 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 			}, nil
 		}
 
-		ok := matcher.Match(pr.Stdout, tc.Output)
-		if !ok {
+		jr := judge.Tokens(pr.Stdout, tc.Output)
+		if jr.Verdict != verdict.OK {
 			return TestingReport{
-				verdict: verdict.WA,
+				verdict: jr.Verdict,
 				passed:  i,
 				total:   tt,
 				stderr:  pr.Stderr,
