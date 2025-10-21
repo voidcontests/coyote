@@ -3,7 +3,6 @@ package submission
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -28,8 +27,6 @@ func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemR
 }
 
 func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submission) error {
-	slog.Debug("processing submission", slog.Int("submission_id", int(submission.ID)))
-
 	go func() {
 		s.submissionRepo.UpdateVerdict(ctx, submission.ID, domain.VerdictRunning)
 	}()
@@ -41,7 +38,7 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 
 	tcs, err := s.problemRepo.GetTestCases(ctx, submission.ProblemID)
 	if err != nil {
-		return fmt.Errorf("get test cases: %w", err)
+		return fmt.Errorf("failed to get test cases: %w", err)
 	}
 
 	r, err := s.TestSolution(ctx, submission.Code, l, tcs)

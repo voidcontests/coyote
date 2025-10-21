@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -37,8 +38,10 @@ func (h *Handler) Listen(ctx context.Context, channel string) error {
 			return ctx.Err()
 		case submission, ok := <-submissionChan:
 			if !ok {
-				return fmt.Errorf("submission channel closed")
+				return errors.New("submission channel closed")
 			}
+
+			slog.Debug("processing submission", slog.Int("submission_id", int(submission.ID)))
 
 			err := h.submissionService.ProcessSubmission(ctx, submission)
 			if err != nil {
