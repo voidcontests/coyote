@@ -16,16 +16,3 @@ type MessageQueue interface {
 	Subscribe(context.Context, string) (<-chan Submission, error)
 	Close() error
 }
-
-type Runner interface {
-	Execute(ExecutionRequest) (ExecutionReport, error)
-	Cleanup(string) error
-}
-
-type LanguageProvider interface {
-	GetLanguage(string) (Language, error)
-}
-
-type OutputMatcher interface {
-	Match(string, string) bool
-}

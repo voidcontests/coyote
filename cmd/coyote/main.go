@@ -10,17 +10,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docker/docker/client"
 	"github.com/voidcontests/coyote/internal/config"
 	httpdelivery "github.com/voidcontests/coyote/internal/delivery/http"
-	"github.com/voidcontests/coyote/internal/delivery/queue"
+	qdelivery "github.com/voidcontests/coyote/internal/delivery/queue"
 	"github.com/voidcontests/coyote/internal/repository/postgres"
 	"github.com/voidcontests/coyote/internal/repository/redis"
 	"github.com/voidcontests/coyote/internal/usecase/submission"
 	"github.com/voidcontests/coyote/internal/version"
-	"github.com/voidcontests/coyote/pkg/language"
 	"github.com/voidcontests/coyote/pkg/logger"
-	"github.com/voidcontests/coyote/pkg/matcher"
-	"github.com/voidcontests/coyote/pkg/runner"
 )
 
 func main() {
@@ -49,19 +47,14 @@ func main() {
 	messageQueue := redis.NewMessageQueue(c.Redis)
 	defer messageQueue.Close()
 
-	codeRunner := runner.New(c.Runner.DockerImage)
-	languageProvider := language.NewProvider()
-	outputMatcher := matcher.NewOutputMatcher()
-
-	submissionService := submission.New(
-		submissionRepo,
-		problemRepo,
-		codeRunner,
-		languageProvider,
-		outputMatcher,
+	dc, err := client.NewClientWithOpts(
+		client.WithHost(client.DefaultDockerHost),
+		client.WithAPIVersionNegotiation(),
 	)
 
-	queueHandler := queue.NewHandler(submissionService, messageQueue)
+	ss := submission.New(submissionRepo, problemRepo, dc)
+
+	queueHandler := qdelivery.NewHandler(ss, messageQueue)
 	defer queueHandler.Close()
 
 	httpHandler := httpdelivery.NewHandler()
