@@ -6,6 +6,7 @@ type Submission struct {
 	ID               int32
 	EntryID          int32
 	ProblemID        int32
+	Status           string
 	Verdict          string
 	Answer           string
 	Code             string

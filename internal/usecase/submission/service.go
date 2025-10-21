@@ -3,12 +3,16 @@ package submission
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/docker/docker/client"
 	"github.com/voidcontests/coyote/internal/domain"
+	"github.com/voidcontests/coyote/internal/domain/status"
+	"github.com/voidcontests/coyote/internal/domain/verdict"
 	"github.com/voidcontests/coyote/pkg/container"
 	"github.com/voidcontests/coyote/pkg/language"
+	"github.com/voidcontests/coyote/pkg/logger"
 	"github.com/voidcontests/coyote/pkg/matcher"
 )
 
@@ -28,7 +32,10 @@ func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemR
 
 func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submission) error {
 	go func() {
-		s.submissionRepo.UpdateVerdict(ctx, submission.ID, domain.VerdictRunning)
+		err := s.submissionRepo.UpdateStatus(ctx, submission.ID, status.Running)
+		if err != nil {
+			slog.Error("failed to update submission status", logger.Err(err))
+		}
 	}()
 
 	l, ok := language.Get(submission.Language)
@@ -43,10 +50,13 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 
 	r, err := s.TestSolution(ctx, submission.Code, l, tcs)
 	if err != nil {
+		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Completed); err != nil {
+			slog.Error("failed to test solution", logger.Err(err))
+		}
 		return err
 	}
 
-	err = s.submissionRepo.SetResult(ctx, submission.ID, r.verdict, int32(r.passed), r.stderr)
+	err = s.submissionRepo.SetResult(ctx, submission.ID, status.Completed, r.verdict, int32(r.passed), r.stderr)
 	if err != nil {
 		return fmt.Errorf("update verdict: %w", err)
 	}
@@ -111,7 +121,7 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 
 		if !pr.Ok {
 			return TestingReport{
-				verdict: domain.VerdictCompilationError,
+				verdict: verdict.CE,
 				passed:  0,
 				total:   tt,
 				stderr:  pr.Stderr,
@@ -134,7 +144,7 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 		pr, err := s.executeWithTimeout(ctx, cc, cmd, 2*time.Second)
 		if err == context.DeadlineExceeded {
 			return TestingReport{
-				verdict: domain.VerdictTimeLimitExceeded,
+				verdict: verdict.TLE,
 				passed:  i,
 				total:   tt,
 				failed: &domain.FailedTest{
@@ -149,7 +159,7 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 
 		if !pr.Ok {
 			return TestingReport{
-				verdict: domain.VerdictRuntimeError,
+				verdict: verdict.RE,
 				passed:  i,
 				total:   tt,
 				stderr:  pr.Stderr,
@@ -164,7 +174,7 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 		ok := matcher.Match(pr.Stdout, tc.Output)
 		if !ok {
 			return TestingReport{
-				verdict: domain.VerdictWrongAnswer,
+				verdict: verdict.WA,
 				passed:  i,
 				total:   tt,
 				stderr:  pr.Stderr,
@@ -178,7 +188,7 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 	}
 
 	return TestingReport{
-		verdict: domain.VerdictOK,
+		verdict: verdict.OK,
 		passed:  tt,
 		total:   tt,
 		stderr:  "",

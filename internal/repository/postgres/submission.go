@@ -14,15 +14,21 @@ func NewSubmissionRepository(pool *pgxpool.Pool) *SubmissionRepository {
 	return &SubmissionRepository{pool: pool}
 }
 
-func (r *SubmissionRepository) SetResult(ctx context.Context, id int32, verdict string, passedTestsCount int32, stderr string) error {
-	query := `UPDATE submissions SET verdict = $1, passed_tests_count = $2, stderr = $3 WHERE id = $4`
-	_, err := r.pool.Exec(ctx, query, verdict, passedTestsCount, stderr, id)
+func (r *SubmissionRepository) SetResult(ctx context.Context, submissionID int32, status string, verdict string, passedTestsCount int32, stderr string) error {
+	query := `UPDATE submissions SET status = $1, verdict = $2, passed_tests_count = $3, stderr = $4 WHERE id = $5`
+	_, err := r.pool.Exec(ctx, query, status, verdict, passedTestsCount, stderr, submissionID)
 	return err
 }
 
-func (r *SubmissionRepository) UpdateVerdict(ctx context.Context, id int32, verdict string) error {
-	query := `UPDATE submissions SET verdict = $1 WHERE id = $2`
-	_, err := r.pool.Exec(ctx, query, verdict, id)
+func (r *SubmissionRepository) UpdateVerdictAndStatus(ctx context.Context, submissionID int32, verdict string, status string) error {
+	query := `UPDATE submissions SET verdict = $1, status = $2 WHERE id = $3`
+	_, err := r.pool.Exec(ctx, query, verdict, status, submissionID)
+	return err
+}
+
+func (r *SubmissionRepository) UpdateStatus(ctx context.Context, submissionID int32, status string) error {
+	query := `UPDATE submissions SET status = $1 WHERE id = $2`
+	_, err := r.pool.Exec(ctx, query, status, submissionID)
 	return err
 }
 
