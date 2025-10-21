@@ -80,13 +80,14 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 	if err != nil {
 		return TestingReport{}, err
 	}
+	defer cc.Flush(ctx)
 
 	path := struct {
 		source string
 		build  string
 		input  string
 	}{
-		source: fmt.Sprintf("solution.%s", l.Extension),
+		source: fmt.Sprintf("/sandbox/solution.%s", l.Extension),
 		build:  "/sandbox/solution",
 		input:  "/sandbox/input.txt",
 	}
