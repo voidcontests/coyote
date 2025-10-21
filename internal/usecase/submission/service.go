@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/docker/docker/client"
 	"github.com/voidcontests/coyote/internal/domain"
@@ -105,7 +106,6 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 			return TestingReport{}, fmt.Errorf("no compilation command for language: %s", l.Name)
 		}
 
-		// TODO: Introduce timeout via contexts
 		pr, err := cc.Execute(ctx, cmd)
 		if err != nil {
 			return TestingReport{}, err
@@ -133,7 +133,18 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 			return TestingReport{}, err
 		}
 
-		pr, err := cc.Execute(ctx, cmd)
+		pr, err := s.executeWithTimeout(ctx, cc, cmd, 2*time.Second)
+		if err == context.DeadlineExceeded {
+			return TestingReport{
+				verdict: domain.VerdictTimeLimitExceeded,
+				passed:  i,
+				total:   tt,
+				failed: &domain.FailedTest{
+					Input:          tc.Input,
+					ExpectedOutput: tc.Output,
+				},
+			}, nil
+		}
 		if err != nil {
 			return TestingReport{}, err
 		}
@@ -175,4 +186,30 @@ func (s *Service) TestSolution(ctx context.Context, code string, l language.Lang
 		stderr:  "",
 		failed:  nil,
 	}, nil
+}
+
+func (s *Service) executeWithTimeout(ctx context.Context, cc *container.Context, cmd string, timeout time.Duration) (container.ProcessResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	prch := make(chan container.ProcessResult, 1)
+	errch := make(chan error, 1)
+
+	go func() {
+		pr, err := cc.Execute(ctx, cmd)
+		if err != nil {
+			errch <- err
+			return
+		}
+		prch <- pr
+	}()
+
+	select {
+	case pr := <-prch:
+		return pr, nil
+	case err := <-errch:
+		return container.ProcessResult{}, err
+	case <-ctx.Done():
+		return container.ProcessResult{}, context.DeadlineExceeded
+	}
 }
