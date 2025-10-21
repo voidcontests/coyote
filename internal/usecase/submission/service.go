@@ -2,31 +2,27 @@ package submission
 
 import (
 	"context"
-	"encoding/base64"
-	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
-	"time"
 
+	"github.com/docker/docker/client"
 	"github.com/voidcontests/coyote/internal/domain"
+	"github.com/voidcontests/coyote/pkg/container"
+	"github.com/voidcontests/coyote/pkg/language"
+	"github.com/voidcontests/coyote/pkg/matcher"
 )
 
 type Service struct {
-	submissionRepo   domain.SubmissionRepository
-	problemRepo      domain.ProblemRepository
-	codeRunner       domain.Runner
-	languageProvider domain.LanguageProvider
-	outputMatcher    domain.OutputMatcher
+	submissionRepo domain.SubmissionRepository
+	problemRepo    domain.ProblemRepository
+	client         *client.Client
 }
 
-func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemRepository, codeRunner domain.Runner, languageProvider domain.LanguageProvider, outputMatcher domain.OutputMatcher) *Service {
+func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemRepository, c *client.Client) *Service {
 	return &Service{
-		submissionRepo:   submissionRepo,
-		problemRepo:      problemRepo,
-		codeRunner:       codeRunner,
-		languageProvider: languageProvider,
-		outputMatcher:    outputMatcher,
+		submissionRepo: submissionRepo,
+		problemRepo:    problemRepo,
+		client:         c,
 	}
 }
 
@@ -37,33 +33,33 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		s.submissionRepo.UpdateVerdict(ctx, submission.ID, domain.VerdictRunning)
 	}()
 
-	lang, err := s.languageProvider.GetLanguage(submission.Language)
+	l, err := language.Get(submission.Language)
 	if err != nil {
 		return fmt.Errorf("get language: %w", err)
 	}
 
-	filebase := fmt.Sprintf("%d", time.Now().UnixNano())
-	defer s.codeRunner.Cleanup(filebase)
-
-	testCases, err := s.problemRepo.GetTestCases(ctx, submission.ProblemID)
+	tcs, err := s.problemRepo.GetTestCases(ctx, submission.ProblemID)
 	if err != nil {
 		return fmt.Errorf("get test cases: %w", err)
 	}
 
-	verdict, passedCount, stderr, failedTest := s.executeTestCases(filebase, lang, submission.Code, testCases)
+	r, err := s.TestSolution(ctx, submission.Code, l, tcs)
+	if err != nil {
+		return err
+	}
 
-	err = s.submissionRepo.SetResult(ctx, submission.ID, verdict, int32(passedCount), stderr)
+	err = s.submissionRepo.SetResult(ctx, submission.ID, r.verdict, int32(r.passed), r.stderr)
 	if err != nil {
 		return fmt.Errorf("update verdict: %w", err)
 	}
 
-	if failedTest != nil {
+	if r.failed != nil {
 		err = s.submissionRepo.CreateFailedTest(
 			ctx,
 			submission.ID,
-			failedTest.Input,
-			failedTest.ExpectedOutput,
-			failedTest.ActualOutput,
+			r.failed.Input,
+			r.failed.ExpectedOutput,
+			r.failed.ActualOutput,
 		)
 		if err != nil {
 			return fmt.Errorf("save failed test: %w", err)
@@ -73,112 +69,110 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 	return nil
 }
 
-func (s *Service) executeTestCases(filebase string, lang domain.Language, code string, testCases []domain.TestCase) (verdict string, passedCount int, stderr string, failedTest *domain.FailedTest) {
-	verdict = domain.VerdictRunning
+type TestingReport struct {
+	verdict string
+	passed  int
+	total   int
+	stderr  string
+	failed  *domain.FailedTest
+}
 
-	// TODO: move this timeout somewhere
-	timeout := 2 * time.Second
+func (s *Service) TestSolution(ctx context.Context, code string, l language.Language, tcs []domain.TestCase) (TestingReport, error) {
+	cc, err := container.New(ctx, s.client)
+	if err != nil {
+		return TestingReport{}, err
+	}
 
-	for _, tc := range testCases {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	path := struct {
+		source string
+		build  string
+		input  string
+	}{
+		source: fmt.Sprintf("solution.%s", l.Extension),
+		build:  "/sandbox/solution",
+		input:  "/sandbox/input.txt",
+	}
 
-		report, err := s.executeWithTimeout(ctx, domain.ExecutionRequest{
-			Filebase: filebase,
-			Language: lang.Name,
-			CodeB64:  base64.StdEncoding.EncodeToString([]byte(code)),
-			InputB64: base64.StdEncoding.EncodeToString([]byte(tc.Input)),
-		})
-		cancel()
+	err = cc.WriteFile(ctx, path.source, code)
+	if err != nil {
+		return TestingReport{}, err
+	}
 
+	tt := len(tcs)
+	if l.IsCompiled {
+		cmd, ok := language.GetCompilationCommand(l, path.source, path.build)
+		if !ok {
+			return TestingReport{}, fmt.Errorf("no compilation command for language: %s", l.Name)
+		}
+
+		// TODO: Introduce timeout via contexts
+		pr, err := cc.Execute(ctx, cmd)
 		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				verdict = domain.VerdictTimeLimitExceeded
-				failedTest = &domain.FailedTest{
+			return TestingReport{}, err
+		}
+
+		if !pr.Ok {
+			return TestingReport{
+				verdict: domain.VerdictCompilationError,
+				passed:  0,
+				total:   tt,
+				stderr:  pr.Stderr,
+				failed:  nil,
+			}, nil
+		}
+	}
+
+	cmd, ok := language.GetExecutionCommand(l, path.source, path.input, path.build)
+	if !ok {
+		return TestingReport{}, fmt.Errorf("no execution command for language: %s", l.Name)
+	}
+
+	for i, tc := range tcs {
+		err = cc.WriteFile(ctx, path.input, tc.Input)
+		if err != nil {
+			return TestingReport{}, err
+		}
+
+		pr, err := cc.Execute(ctx, cmd)
+		if err != nil {
+			return TestingReport{}, err
+		}
+
+		if !pr.Ok {
+			return TestingReport{
+				verdict: domain.VerdictRuntimeError,
+				passed:  i,
+				total:   tt,
+				stderr:  pr.Stderr,
+				failed: &domain.FailedTest{
 					Input:          tc.Input,
 					ExpectedOutput: tc.Output,
-					ActualOutput:   "",
-				}
-				return
-			}
-
-			// TODO: introduce verdict `cancelled`, and set it
-			// when unexpected error happened while execution
-			slog.Error("execution error", slog.String("error", err.Error()))
-			break
+					ActualOutput:   pr.Stdout,
+				},
+			}, nil
 		}
 
-		v, ft, se := s.processReport(report, tc, lang)
-		if v != domain.VerdictOK {
-			verdict = v
-			failedTest = ft
-			stderr = se
-			break
-		}
-
-		passedCount++
-	}
-
-	if passedCount == len(testCases) {
-		verdict = domain.VerdictOK
-	}
-
-	return
-}
-
-func (s *Service) executeWithTimeout(ctx context.Context, req domain.ExecutionRequest) (domain.ExecutionReport, error) {
-	errch := make(chan error, 1)
-	reportch := make(chan domain.ExecutionReport, 1)
-
-	go func() {
-		report, err := s.codeRunner.Execute(req)
-		if err != nil {
-			errch <- err
-			return
-		}
-		reportch <- report
-	}()
-
-	select {
-	case <-ctx.Done():
-		return domain.ExecutionReport{}, ctx.Err() // returns context.DeadlineExceeded
-	case err := <-errch:
-		return domain.ExecutionReport{}, err
-	case report := <-reportch:
-		return report, nil
-	}
-}
-
-func (s *Service) processReport(report domain.ExecutionReport, tc domain.TestCase, lang domain.Language) (verdict string, failedTest *domain.FailedTest, stderr string) {
-	// TODO: This is VERY dump check for `compilation_error`.
-	// But we can't do much with it for now:
-	//  - precompilation: unavailable - requires volumes to keep binary
-	if lang.Kind == domain.Compiled && report.ExitCode != 0 && report.Stderr != "" {
-		// compilation error
-		if strings.Contains(report.Stderr, "error:") || strings.Contains(report.Stderr, "fatal error:") {
-			return domain.VerdictCompilationError, nil, report.Stderr
+		ok := matcher.Match(pr.Stdout, tc.Output)
+		if !ok {
+			return TestingReport{
+				verdict: domain.VerdictWrongAnswer,
+				passed:  i,
+				total:   tt,
+				stderr:  pr.Stderr,
+				failed: &domain.FailedTest{
+					Input:          tc.Input,
+					ExpectedOutput: tc.Output,
+					ActualOutput:   pr.Stdout,
+				},
+			}, nil
 		}
 	}
 
-	match := s.outputMatcher.Match(report.Stdout, tc.Output)
-
-	if report.ExitCode == 0 && match {
-		// test passed
-		return domain.VerdictOK, nil, ""
-	} else if report.ExitCode != 0 {
-		// runtime error
-		failedTest = &domain.FailedTest{
-			Input:          tc.Input,
-			ExpectedOutput: tc.Output,
-			ActualOutput:   report.Stdout,
-		}
-		return domain.VerdictRuntimeError, failedTest, report.Stderr
-	} else {
-		// wrong answer (exit code 0 but output doesn't match)
-		failedTest = &domain.FailedTest{
-			Input:          tc.Input,
-			ExpectedOutput: tc.Output,
-			ActualOutput:   report.Stdout,
-		}
-		return domain.VerdictWrongAnswer, failedTest, ""
-	}
+	return TestingReport{
+		verdict: domain.VerdictOK,
+		passed:  tt,
+		total:   tt,
+		stderr:  "",
+		failed:  nil,
+	}, nil
 }

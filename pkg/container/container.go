@@ -1,0 +1,116 @@
+package container
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
+)
+
+// Context holds common parameters for container operations
+type Context struct {
+	client      *client.Client
+	containerID string
+}
+
+type ProcessResult struct {
+	Ok       bool
+	ExitCode int
+	Stdout   string
+	Stderr   string
+}
+
+func New(ctx context.Context, c *client.Client) (*Context, error) {
+	secopts, err := readSecurityOpts()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.ContainerCreate(ctx, &container.Config{
+		Image: "ghcr.io/voidcontests/runner:latest",
+		Cmd:   []string{"sleep", "3600"},
+	}, &container.HostConfig{
+		SecurityOpt: []string{
+			fmt.Sprintf("seccomp=%s", secopts),
+		},
+	}, nil, nil, "")
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create container: %w", err)
+	}
+
+	err = c.ContainerStart(ctx, resp.ID, container.StartOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start container: %w", err)
+	}
+
+	return &Context{
+		client:      c,
+		containerID: resp.ID,
+	}, nil
+}
+
+func (cc *Context) Flush(ctx context.Context) error {
+	return cc.client.ContainerRemove(ctx, cc.containerID, container.RemoveOptions{Force: true})
+}
+
+func (cc *Context) WriteFile(ctx context.Context, path string, content string) error {
+	b64 := base64.StdEncoding.EncodeToString([]byte(content))
+	cmd := fmt.Sprintf("echo '%s' | base64 -d > %s", b64, path)
+	_, err := cc.Execute(ctx, cmd)
+	return err
+}
+
+func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, error) {
+	execopts, err := cc.client.ContainerExecCreate(ctx, cc.containerID, container.ExecOptions{
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          []string{"/bin/bash", "-c", cmd},
+	})
+	if err != nil {
+		return ProcessResult{}, fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	hr, err := cc.client.ContainerExecAttach(ctx, execopts.ID, container.ExecAttachOptions{})
+	if err != nil {
+		return ProcessResult{}, fmt.Errorf("failed to attach to exec: %w", err)
+	}
+	defer hr.Close()
+
+	var execution struct {
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	}
+
+	_, err = stdcopy.StdCopy(&execution.stdout, &execution.stderr, hr.Reader)
+	if err != nil && err != io.EOF {
+		return ProcessResult{}, fmt.Errorf("failed to read program output: %w", err)
+	}
+
+	ei, err := cc.client.ContainerExecInspect(ctx, execopts.ID)
+	if err != nil {
+		return ProcessResult{}, fmt.Errorf("failed to inspect execution: %w", err)
+	}
+
+	return ProcessResult{
+		Ok:       ei.ExitCode == 0,
+		ExitCode: ei.ExitCode,
+		Stdout:   execution.stdout.String(),
+		Stderr:   execution.stderr.String(),
+	}, nil
+}
+
+func readSecurityOpts() (string, error) {
+	bytes, err := os.ReadFile("seccomp.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to read seccomp.json: %w", err)
+	}
+
+	return string(bytes), nil
+}

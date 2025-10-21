@@ -24,7 +24,6 @@ type TestCase struct {
 }
 
 type FailedTest struct {
-	SubmissionID   int32
 	Input          string
 	ExpectedOutput string
 	ActualOutput   string
