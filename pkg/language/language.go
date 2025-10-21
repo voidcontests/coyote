@@ -34,14 +34,16 @@ var languages = map[string]Language{
 	},
 }
 
-func Get(name string) (Language, error) {
+// Get returns a language based on it's name
+func Get(name string) (Language, bool) {
 	lang, ok := languages[name]
 	if !ok {
-		return Language{}, ErrUnknownLanguage
+		return Language{}, false
 	}
-	return lang, nil
+	return lang, true
 }
 
+// GetCompilationCommand returns a `cmd` to compile a source code of a compiled language
 func GetCompilationCommand(l Language, source, output string) (string, bool) {
 	if !l.IsCompiled {
 		return "", false
@@ -55,6 +57,7 @@ func GetCompilationCommand(l Language, source, output string) (string, bool) {
 	return "", false
 }
 
+// GetExecutionCommand returns a `cmd` to execute source code of interpreted language or execute compiled binary, is language is a compiled one
 func GetExecutionCommand(l Language, source, input, output string) (string, bool) {
 	switch l.Name {
 	case CPP:

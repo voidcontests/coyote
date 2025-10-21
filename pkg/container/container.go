@@ -19,6 +19,7 @@ type Context struct {
 	containerID string
 }
 
+// ProcessResult stores different information about result of executed command
 type ProcessResult struct {
 	Ok       bool
 	ExitCode int
@@ -26,6 +27,7 @@ type ProcessResult struct {
 	Stderr   string
 }
 
+// New creates and starts new docker container with security options and return attached Context
 func New(ctx context.Context, c *client.Client) (*Context, error) {
 	secopts, err := readSecurityOpts()
 	if err != nil {
@@ -56,10 +58,12 @@ func New(ctx context.Context, c *client.Client) (*Context, error) {
 	}, nil
 }
 
+// Flush force remove attached container to Context
 func (cc *Context) Flush(ctx context.Context) error {
 	return cc.client.ContainerRemove(ctx, cc.containerID, container.RemoveOptions{Force: true})
 }
 
+// WriteFile writes a file into container file system
 func (cc *Context) WriteFile(ctx context.Context, path string, content string) error {
 	b64 := base64.StdEncoding.EncodeToString([]byte(content))
 	cmd := fmt.Sprintf("echo '%s' | base64 -d > %s", b64, path)
@@ -67,6 +71,7 @@ func (cc *Context) WriteFile(ctx context.Context, path string, content string) e
 	return err
 }
 
+// Execute executes provided `cmd` inside the container
 func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, error) {
 	execopts, err := cc.client.ContainerExecCreate(ctx, cc.containerID, container.ExecOptions{
 		AttachStdout: true,

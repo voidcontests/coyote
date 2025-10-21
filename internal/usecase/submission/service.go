@@ -34,9 +34,9 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		s.submissionRepo.UpdateVerdict(ctx, submission.ID, domain.VerdictRunning)
 	}()
 
-	l, err := language.Get(submission.Language)
-	if err != nil {
-		return fmt.Errorf("get language: %w", err)
+	l, ok := language.Get(submission.Language)
+	if !ok {
+		return fmt.Errorf("unknown language: %s", submission.Language)
 	}
 
 	tcs, err := s.problemRepo.GetTestCases(ctx, submission.ProblemID)
