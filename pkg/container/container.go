@@ -93,8 +93,10 @@ func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, erro
 		stderr bytes.Buffer
 	}
 
-	_, err = stdcopy.StdCopy(&execution.stdout, &execution.stderr, hr.Reader)
-	if err != nil && err != io.EOF {
+	reader := &reader{ctx: ctx, r: hr.Reader}
+
+	_, err = stdcopy.StdCopy(&execution.stdout, &execution.stderr, reader)
+	if err != nil && err != io.EOF && err != context.DeadlineExceeded && err != context.Canceled {
 		return ProcessResult{}, fmt.Errorf("failed to read program output: %w", err)
 	}
 
@@ -109,6 +111,21 @@ func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, erro
 		Stdout:   execution.stdout.String(),
 		Stderr:   execution.stderr.String(),
 	}, nil
+}
+
+type reader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r *reader) Read(p []byte) (n int, err error) {
+	select {
+	case <-r.ctx.Done():
+		return 0, r.ctx.Err()
+	default:
+	}
+
+	return r.r.Read(p)
 }
 
 func readSecurityOpts() (string, error) {

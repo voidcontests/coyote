@@ -4,14 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
-	"github.com/docker/docker/client"
+	docker "github.com/docker/docker/client"
 	"github.com/voidcontests/coyote/internal/domain"
 	"github.com/voidcontests/coyote/internal/domain/status"
 	"github.com/voidcontests/coyote/internal/domain/verdict"
-	"github.com/voidcontests/coyote/pkg/container"
-	"github.com/voidcontests/coyote/pkg/judge"
 	"github.com/voidcontests/coyote/pkg/language"
 	"github.com/voidcontests/coyote/pkg/logger"
 )
@@ -19,14 +16,14 @@ import (
 type Service struct {
 	submissionRepo domain.SubmissionRepository
 	problemRepo    domain.ProblemRepository
-	client         *client.Client // TODO: Try to remove this direct dependency on *client.Client
+	client         *docker.Client // TODO: Try to remove this direct dependency on *docker.Client
 }
 
-func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemRepository, c *client.Client) *Service {
+func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemRepository, dc *docker.Client) *Service {
 	return &Service{
 		submissionRepo: submissionRepo,
 		problemRepo:    problemRepo,
-		client:         c,
+		client:         dc,
 	}
 }
 
@@ -48,177 +45,30 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		return fmt.Errorf("failed to get test cases: %w", err)
 	}
 
-	tr, err := s.TestSolution(ctx, submission.Code, l, tcs)
+	tr, err := s.runTests(ctx, submission.Code, l, tcs)
 	if err != nil {
 		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Completed); err != nil {
-			slog.Error("failed to test solution", logger.Err(err))
+			slog.Error("failed to update submission verdict", logger.Err(err))
 		}
 		return err
 	}
 
-	err = s.submissionRepo.SetResult(ctx, submission.ID, status.Completed, tr.verdict, int32(tr.passed), tr.stderr)
-	if err != nil {
-		return fmt.Errorf("update verdict: %w", err)
+	params := domain.TestingReport{
+		SubmissionID:     submission.ID,
+		PassedTestsCount: tr.passed,
+		TotalTestsCount:  len(tcs),
+		Stderr:           tr.stderr,
 	}
 
-	if tr.failed != nil {
-		err = s.submissionRepo.CreateFailedTest(
-			ctx,
-			submission.ID,
-			tr.failed.Input,
-			tr.failed.ExpectedOutput,
-			tr.failed.ActualOutput,
-		)
-		if err != nil {
-			return fmt.Errorf("save failed test: %w", err)
-		}
+	if tr.failedTestCase != nil {
+		params.FirstFailedTestID = &tr.failedTestCase.ID
+		params.FirstFailedTestOutput = &tr.failedTestOutput
+	}
+
+	err = s.submissionRepo.CreateTestingReportAndComplete(ctx, &params, status.Completed, tr.verdict)
+	if err != nil {
+		return fmt.Errorf("failed to create testing report or update submission's status/verdict: %w", err)
 	}
 
 	return nil
-}
-
-type TestingReport struct {
-	verdict string
-	passed  int
-	total   int
-	stderr  string
-	failed  *domain.FailedTest
-}
-
-func (s *Service) TestSolution(ctx context.Context, code string, l language.Language, tcs []domain.TestCase) (TestingReport, error) {
-	cc, err := container.New(ctx, s.client)
-	if err != nil {
-		return TestingReport{}, err
-	}
-	defer cc.Flush(ctx)
-
-	path := struct {
-		source string
-		build  string
-		input  string
-	}{
-		source: fmt.Sprintf("/sandbox/solution.%s", l.Extension),
-		build:  "/sandbox/solution",
-		input:  "/sandbox/input.txt",
-	}
-
-	err = cc.WriteFile(ctx, path.source, code)
-	if err != nil {
-		return TestingReport{}, err
-	}
-
-	tt := len(tcs)
-	if l.IsCompiled {
-		cmd, ok := language.GetCompilationCommand(l, path.source, path.build)
-		if !ok {
-			return TestingReport{}, fmt.Errorf("no compilation command for language: %s", l.Name)
-		}
-
-		pr, err := cc.Execute(ctx, cmd)
-		if err != nil {
-			return TestingReport{}, err
-		}
-
-		if !pr.Ok {
-			return TestingReport{
-				verdict: verdict.CE,
-				passed:  0,
-				total:   tt,
-				stderr:  pr.Stderr,
-				failed:  nil,
-			}, nil
-		}
-	}
-
-	cmd, ok := language.GetExecutionCommand(l, path.source, path.input, path.build)
-	if !ok {
-		return TestingReport{}, fmt.Errorf("no execution command for language: %s", l.Name)
-	}
-
-	for i, tc := range tcs {
-		err = cc.WriteFile(ctx, path.input, tc.Input)
-		if err != nil {
-			return TestingReport{}, err
-		}
-
-		pr, err := s.executeWithTimeout(ctx, cc, cmd, 2*time.Second)
-		if err == context.DeadlineExceeded {
-			return TestingReport{
-				verdict: verdict.TLE,
-				passed:  i,
-				total:   tt,
-				failed: &domain.FailedTest{
-					Input:          tc.Input,
-					ExpectedOutput: tc.Output,
-				},
-			}, nil
-		}
-		if err != nil {
-			return TestingReport{}, err
-		}
-
-		if !pr.Ok {
-			return TestingReport{
-				verdict: verdict.RE,
-				passed:  i,
-				total:   tt,
-				stderr:  pr.Stderr,
-				failed: &domain.FailedTest{
-					Input:          tc.Input,
-					ExpectedOutput: tc.Output,
-					ActualOutput:   pr.Stdout,
-				},
-			}, nil
-		}
-
-		// TODO: Introduce judge message for testing report
-		jr := judge.Tokens(pr.Stdout, tc.Output)
-		if jr.Verdict != verdict.OK {
-			return TestingReport{
-				verdict: jr.Verdict,
-				passed:  i,
-				total:   tt,
-				stderr:  pr.Stderr,
-				failed: &domain.FailedTest{
-					Input:          tc.Input,
-					ExpectedOutput: tc.Output,
-					ActualOutput:   pr.Stdout,
-				},
-			}, nil
-		}
-	}
-
-	return TestingReport{
-		verdict: verdict.OK,
-		passed:  tt,
-		total:   tt,
-		stderr:  "",
-		failed:  nil,
-	}, nil
-}
-
-func (s *Service) executeWithTimeout(ctx context.Context, cc *container.Context, cmd string, timeout time.Duration) (container.ProcessResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	prch := make(chan container.ProcessResult, 1)
-	errch := make(chan error, 1)
-
-	go func() {
-		pr, err := cc.Execute(ctx, cmd)
-		if err != nil {
-			errch <- err
-			return
-		}
-		prch <- pr
-	}()
-
-	select {
-	case pr := <-prch:
-		return pr, nil
-	case err := <-errch:
-		return container.ProcessResult{}, err
-	case <-ctx.Done():
-		return container.ProcessResult{}, context.DeadlineExceeded
-	}
 }

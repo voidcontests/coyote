@@ -1,6 +1,7 @@
 package verdict
 
 const (
+	NJ  = "not_judged"
 	OK  = "ok"
 	RE  = "runtime_error"
 	CE  = "compilation_error"

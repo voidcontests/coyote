@@ -15,7 +15,7 @@ func NewProblemRepository(pool *pgxpool.Pool) *ProblemRepository {
 	return &ProblemRepository{pool: pool}
 }
 
-func (r *ProblemRepository) GetTestCases(ctx context.Context, problemID int32) ([]domain.TestCase, error) {
+func (r *ProblemRepository) GetTestCases(ctx context.Context, problemID int) ([]domain.TestCase, error) {
 	query := `SELECT id, problem_id, input, output, is_example FROM test_cases WHERE problem_id = $1`
 	rows, err := r.pool.Query(ctx, query, problemID)
 	if err != nil {

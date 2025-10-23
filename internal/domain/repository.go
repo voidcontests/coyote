@@ -3,14 +3,13 @@ package domain
 import "context"
 
 type SubmissionRepository interface {
-	SetResult(ctx context.Context, submissionID int32, status string, verdict string, passedTestsCount int32, stderr string) error
-	UpdateVerdictAndStatus(ctx context.Context, submissionID int32, verdict string, status string) error
-	UpdateStatus(ctx context.Context, submissionID int32, status string) error
-	CreateFailedTest(ctx context.Context, submissionID int32, input, expectedOutput, actualOutput string) error
+	UpdateVerdictAndStatus(ctx context.Context, submissionID int, verdict string, status string) error
+	UpdateStatus(ctx context.Context, submissionID int, status string) error
+	CreateTestingReportAndComplete(ctx context.Context, report *TestingReport, status string, verdict string) error
 }
 
 type ProblemRepository interface {
-	GetTestCases(ctx context.Context, problemID int32) ([]TestCase, error)
+	GetTestCases(ctx context.Context, problemID int) ([]TestCase, error)
 }
 
 type MessageQueue interface {

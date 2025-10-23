@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/client"
+	docker "github.com/docker/docker/client"
 	"github.com/voidcontests/coyote/internal/config"
 	httpdelivery "github.com/voidcontests/coyote/internal/delivery/http"
 	qdelivery "github.com/voidcontests/coyote/internal/delivery/queue"
@@ -31,7 +31,7 @@ func main() {
 	log := logger.Setup(c.Env, logLevel)
 	slog.SetDefault(log)
 
-	slog.Info("runner: starting...", slog.String("env", c.Env), version.CommitAttr, version.BranchAttr)
+	slog.Info("coyote: starting...", slog.String("env", c.Env), version.CommitAttr, version.BranchAttr)
 
 	pool, err := postgres.NewPool(c.Postgres)
 	if err != nil {
@@ -47,9 +47,9 @@ func main() {
 	messageQueue := redis.NewMessageQueue(c.Redis)
 	defer messageQueue.Close()
 
-	dc, err := client.NewClientWithOpts(
-		client.WithHost(client.DefaultDockerHost),
-		client.WithAPIVersionNegotiation(),
+	dc, err := docker.NewClientWithOpts(
+		docker.WithHost(docker.DefaultDockerHost),
+		docker.WithAPIVersionNegotiation(),
 	)
 
 	ss := submission.New(submissionRepo, problemRepo, dc)
@@ -81,30 +81,30 @@ func main() {
 		}
 	}()
 
-	slog.Info("runner: listening for submissions...", slog.String("channel", c.Runner.Channel))
+	slog.Info("coyote: listening for submissions...", slog.String("channel", c.Runner.Channel))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	select {
-	case <-quit:
-		slog.Info("runner: received shutdown signal")
+	case s := <-quit:
+		slog.Info("coyote: received shutdown signal", slog.String("signal", s.String()))
 	case err := <-errs:
-		slog.Error("runner: fatal error", logger.Err(err))
+		slog.Error("coyote: fatal error", logger.Err(err))
 	}
 
 	cancel()
-	slog.Info("runner: shutting down...")
+	slog.Info("coyote: shutting down...")
 
 	// shadow previous context to shutdown context
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		slog.Error("http: server shutdown error", logger.Err(err))
+		slog.Error("http: error happened while shutting down the server", logger.Err(err))
 	} else {
 		slog.Info("http: server stopped")
 	}
 
-	slog.Info("runner: stopped")
+	slog.Info("coyote: stopped")
 }
