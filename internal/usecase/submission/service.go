@@ -29,7 +29,7 @@ func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemR
 
 func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submission) error {
 	go func() {
-		err := s.submissionRepo.UpdateStatus(ctx, submission.ID, status.Running)
+		err := s.submissionRepo.UpdateStatus(ctx, submission.ID, status.Judging)
 		if err != nil {
 			slog.Error("failed to update submission status", logger.Err(err))
 		}
@@ -47,7 +47,7 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 
 	tr, err := s.runTests(ctx, submission.Code, l, tcs)
 	if err != nil {
-		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Completed); err != nil {
+		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Failed); err != nil {
 			slog.Error("failed to update submission verdict", logger.Err(err))
 		}
 		return err
@@ -65,7 +65,7 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		params.FirstFailedTestOutput = &tr.failedTestOutput
 	}
 
-	err = s.submissionRepo.CreateTestingReportAndComplete(ctx, &params, status.Completed, tr.verdict)
+	err = s.submissionRepo.CreateTestingReportAndComplete(ctx, &params, status.Success, tr.verdict)
 	if err != nil {
 		return fmt.Errorf("failed to create testing report or update submission's status/verdict: %w", err)
 	}

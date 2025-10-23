@@ -1,7 +1,8 @@
 package status
 
 const (
-	Pending   = "pending"
-	Running   = "running"
-	Completed = "completed"
+	Pending = "pending"
+	Judging = "judging"
+	Success = "success"
+	Failed  = "failed"
 )
