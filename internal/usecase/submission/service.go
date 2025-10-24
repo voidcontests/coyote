@@ -50,7 +50,12 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		return fmt.Errorf("failed to get test cases: %w", err)
 	}
 
-	tr, err := s.runTests(ctx, submission.Code, l, tcs)
+	tl, err := s.problemRepo.GetTimeLimit(ctx, submission.ProblemID)
+	if err != nil {
+		return fmt.Errorf("failed to get time limit: %w", err)
+	}
+
+	tr, err := s.runTests(ctx, submission.Code, l, tcs, tl)
 	if err != nil {
 		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Failed); err != nil {
 			slog.Error("failed to update submission verdict", logger.Err(err))
@@ -87,7 +92,7 @@ type report struct {
 	failedTestOutput string
 }
 
-func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase) (report, error) {
+func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase, tl time.Duration) (report, error) {
 	cc, err := container.New(ctx, s.client)
 	if err != nil {
 		return report{}, err
@@ -144,7 +149,7 @@ func (s *Service) runTests(ctx context.Context, code string, l language.Language
 			return report{}, err
 		}
 
-		pr, err := cc.ExecuteWithTimeout(ctx, cmd, 2*time.Second)
+		pr, err := cc.ExecuteWithTimeout(ctx, cmd, tl)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return report{
 				verdict:        verdict.TLE,

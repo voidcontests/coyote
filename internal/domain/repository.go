@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type SubmissionRepository interface {
 	UpdateVerdictAndStatus(ctx context.Context, submissionID int, verdict string, status string) error
@@ -10,6 +13,7 @@ type SubmissionRepository interface {
 
 type ProblemRepository interface {
 	GetTestCases(ctx context.Context, problemID int) ([]TestCase, error)
+	GetTimeLimit(ctx context.Context, problemID int) (time.Duration, error)
 }
 
 type MessageQueue interface {

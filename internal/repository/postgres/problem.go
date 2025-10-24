@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -34,4 +35,11 @@ func (r *ProblemRepository) GetTestCases(ctx context.Context, problemID int) ([]
 	}
 
 	return testCases, nil
+}
+
+func (r *ProblemRepository) GetTimeLimit(ctx context.Context, problemID int) (time.Duration, error) {
+	var timeLimitMS int
+	query := `SELECT time_limit_ms FROM problems WHERE id = $1`
+	err := r.pool.QueryRow(ctx, query, problemID).Scan(&timeLimitMS)
+	return time.Duration(timeLimitMS) * time.Millisecond, err
 }
