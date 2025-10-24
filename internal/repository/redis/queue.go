@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
+
 	"github.com/voidcontests/coyote/internal/config"
 	"github.com/voidcontests/coyote/internal/domain"
 )

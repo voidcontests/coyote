@@ -11,6 +11,7 @@ import (
 	"time"
 
 	docker "github.com/docker/docker/client"
+
 	"github.com/voidcontests/coyote/internal/config"
 	httpdelivery "github.com/voidcontests/coyote/internal/delivery/http"
 	qdelivery "github.com/voidcontests/coyote/internal/delivery/queue"

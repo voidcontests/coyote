@@ -7,6 +7,7 @@ import (
 	"time"
 
 	docker "github.com/docker/docker/client"
+
 	"github.com/voidcontests/coyote/internal/domain"
 	"github.com/voidcontests/coyote/internal/domain/status"
 	"github.com/voidcontests/coyote/internal/domain/verdict"
