@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -93,11 +94,30 @@ func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, erro
 		stderr bytes.Buffer
 	}
 
-	reader := &reader{ctx: ctx, r: hr.Reader}
+	done := make(chan error, 1)
 
-	_, err = stdcopy.StdCopy(&execution.stdout, &execution.stderr, reader)
-	if err != nil && err != io.EOF && err != context.DeadlineExceeded && err != context.Canceled {
-		return ProcessResult{}, fmt.Errorf("failed to read program output: %w", err)
+	go func() {
+		reader := &reader{ctx: ctx, r: hr.Reader}
+		_, err := stdcopy.StdCopy(&execution.stdout, &execution.stderr, reader)
+		if err != nil && err != io.EOF {
+			done <- err
+		} else {
+			done <- nil
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ProcessResult{
+			Ok:       false,
+			ExitCode: -1,
+			Stdout:   execution.stdout.String(),
+			Stderr:   execution.stderr.String(),
+		}, ctx.Err()
+	case err := <-done:
+		if err != nil && err != context.DeadlineExceeded && err != context.Canceled {
+			return ProcessResult{}, fmt.Errorf("failed to read program output: %w", err)
+		}
 	}
 
 	ei, err := cc.client.ContainerExecInspect(ctx, execopts.ID)
@@ -111,6 +131,14 @@ func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, erro
 		Stdout:   execution.stdout.String(),
 		Stderr:   execution.stderr.String(),
 	}, nil
+}
+
+// Execute executes provided `cmd` inside the container with given timeout
+func (cc *Context) ExecuteWithTimeout(ctx context.Context, cmd string, timeout time.Duration) (ProcessResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return cc.Execute(ctx, cmd)
 }
 
 type reader struct {
