@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -99,7 +100,7 @@ func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, erro
 	go func() {
 		reader := &reader{ctx: ctx, r: hr.Reader}
 		_, err := stdcopy.StdCopy(&execution.stdout, &execution.stderr, reader)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			done <- err
 		} else {
 			done <- nil
@@ -115,7 +116,7 @@ func (cc *Context) Execute(ctx context.Context, cmd string) (ProcessResult, erro
 			Stderr:   execution.stderr.String(),
 		}, ctx.Err()
 	case err := <-done:
-		if err != nil && err != context.DeadlineExceeded && err != context.Canceled {
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			return ProcessResult{}, fmt.Errorf("failed to read program output: %w", err)
 		}
 	}

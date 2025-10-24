@@ -10,10 +10,6 @@ import (
 	"github.com/voidcontests/coyote/internal/config"
 )
 
-type PRepository struct {
-	pool *pgxpool.Pool
-}
-
 func NewPool(c config.Postgres) (*pgxpool.Pool, error) {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", c.User, c.Password, c.Host, c.Port, c.Name, c.ModeSSL)
 

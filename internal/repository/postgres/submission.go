@@ -2,11 +2,15 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/voidcontests/coyote/internal/domain"
+	"github.com/voidcontests/coyote/pkg/logger"
 )
 
 type SubmissionRepository struct {
@@ -34,7 +38,12 @@ func (r *SubmissionRepository) CreateTestingReportAndComplete(ctx context.Contex
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		err := tx.Rollback(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			slog.Error("failed to rollback tx", logger.Err(err))
+		}
+	}()
 
 	query := `UPDATE submissions SET status = $1, verdict = $2 WHERE id = $3`
 	_, err = tx.Exec(ctx, query, status, verdict, report.SubmissionID)

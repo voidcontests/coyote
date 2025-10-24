@@ -2,6 +2,7 @@ package submission
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -144,7 +145,7 @@ func (s *Service) runTests(ctx context.Context, code string, l language.Language
 		}
 
 		pr, err := cc.ExecuteWithTimeout(ctx, cmd, 2*time.Second)
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return report{
 				verdict:        verdict.TLE,
 				passed:         i,

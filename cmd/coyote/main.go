@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -45,24 +46,31 @@ func main() {
 	submissionRepo := postgres.NewSubmissionRepository(pool)
 	problemRepo := postgres.NewProblemRepository(pool)
 
-	messageQueue := redis.NewMessageQueue(c.Redis)
-	defer messageQueue.Close()
+	mq := redis.NewMessageQueue(c.Redis)
+	defer mq.Close()
 
 	dc, err := docker.NewClientWithOpts(
 		docker.WithHost(docker.DefaultDockerHost),
 		docker.WithAPIVersionNegotiation(),
 	)
+	if err != nil {
+		slog.Error("docker: could not init client", logger.Err(err))
+	}
 
 	ss := submission.New(submissionRepo, problemRepo, dc)
 
-	queueHandler := qdelivery.NewHandler(ss, messageQueue)
+	queueHandler := qdelivery.NewHandler(ss, mq)
 	defer queueHandler.Close()
 
 	httpHandler := httpdelivery.NewHandler()
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%s", c.HTTP.Port),
-		Handler: httpHandler,
+		Addr:              fmt.Sprintf(":%s", c.HTTP.Port),
+		Handler:           httpHandler,
+		ReadHeaderTimeout: c.HTTP.Timeout,
+		ReadTimeout:       c.HTTP.Timeout,
+		WriteTimeout:      c.HTTP.Timeout,
+		IdleTimeout:       c.HTTP.IdleTimeout,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -70,7 +78,7 @@ func main() {
 
 	errs := make(chan error, 1)
 	go func() {
-		if err := queueHandler.Listen(ctx, c.Runner.Channel); err != nil && err != context.Canceled {
+		if err := queueHandler.Listen(ctx, c.Runner.Channel); err != nil && !errors.Is(err, context.Canceled) {
 			errs <- err
 		}
 	}()
