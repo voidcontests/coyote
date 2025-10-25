@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	docker "github.com/docker/docker/client"
@@ -178,6 +179,27 @@ func (s *Service) executeTests(ctx context.Context, cc *container.Context, l lan
 		}
 		if err != nil {
 			return report{}, err
+		}
+
+		if pr.ExitCode == 137 && strings.Contains(pr.Stderr, "Killed") {
+			// NOTE: sleep briefly to allow docker to update the container state;
+			// without this, checking OOMKilled immediately may yield false negatives.
+			time.Sleep(300 * time.Millisecond)
+			killed, err := cc.IsKilledByOOM(ctx)
+			if err != nil {
+				return report{}, err
+			}
+
+			if killed {
+				return report{
+					verdict:          verdict.MLE,
+					passed:           i,
+					total:            tt,
+					stderr:           pr.Stderr,
+					failedTestCase:   &tc,
+					failedTestOutput: pr.Stdout,
+				}, nil
+			}
 		}
 
 		if !pr.Ok {

@@ -9,4 +9,5 @@ const (
 	WA  = "wrong_answer"
 	PE  = "presentation_error"
 	TLE = "time_limit_exceeded"
+	MLE = "memory_limit_exceeded"
 )

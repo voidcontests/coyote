@@ -155,6 +155,16 @@ func (cc *Context) ExecuteWithTimeout(ctx context.Context, cmd string, timeout t
 	return cc.Execute(ctx, cmd)
 }
 
+// WasKilledByOOM checks if container was killed because of out of memory
+func (cc *Context) IsKilledByOOM(ctx context.Context) (bool, error) {
+	ir, err := cc.client.ContainerInspect(ctx, cc.containerID)
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect container: %w", err)
+	}
+
+	return ir.State.OOMKilled, nil
+}
+
 type reader struct {
 	ctx context.Context
 	r   io.Reader
