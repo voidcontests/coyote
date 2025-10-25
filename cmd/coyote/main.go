@@ -55,6 +55,7 @@ func main() {
 	)
 	if err != nil {
 		slog.Error("docker: could not init client", logger.Err(err))
+		os.Exit(1)
 	}
 
 	ss := submission.New(submissionRepo, problemRepo, dc)

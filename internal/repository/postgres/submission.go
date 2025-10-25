@@ -24,13 +24,19 @@ func NewSubmissionRepository(pool *pgxpool.Pool) *SubmissionRepository {
 func (r *SubmissionRepository) UpdateVerdictAndStatus(ctx context.Context, submissionID int, verdict string, status string) error {
 	query := `UPDATE submissions SET verdict = $1, status = $2 WHERE id = $3`
 	_, err := r.pool.Exec(ctx, query, verdict, status, submissionID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update submission verdict and status: %w", err)
+	}
+	return nil
 }
 
 func (r *SubmissionRepository) UpdateStatus(ctx context.Context, submissionID int, status string) error {
 	query := `UPDATE submissions SET status = $1 WHERE id = $2`
 	_, err := r.pool.Exec(ctx, query, status, submissionID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update submission status: %w", err)
+	}
+	return nil
 }
 
 func (r *SubmissionRepository) CreateTestingReportAndComplete(ctx context.Context, report *domain.TestingReport, status string, verdict string) error {
@@ -39,9 +45,8 @@ func (r *SubmissionRepository) CreateTestingReportAndComplete(ctx context.Contex
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		err := tx.Rollback(ctx)
-		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-			slog.Error("failed to rollback tx", logger.Err(err))
+		if rbErr := tx.Rollback(ctx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+			slog.Error("failed to rollback transaction", logger.Err(rbErr))
 		}
 	}()
 

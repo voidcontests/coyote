@@ -34,9 +34,11 @@ func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemR
 
 func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submission) error {
 	go func() {
-		err := s.submissionRepo.UpdateStatus(ctx, submission.ID, status.Judging)
-		if err != nil {
-			slog.Error("failed to update submission status", logger.Err(err))
+		if err := s.submissionRepo.UpdateStatus(ctx, submission.ID, status.Judging); err != nil {
+			slog.Error("failed to update submission status to judging",
+				slog.Int("submission_id", submission.ID),
+				logger.Err(err),
+			)
 		}
 	}()
 
@@ -92,6 +94,12 @@ type report struct {
 	failedTestOutput string
 }
 
+type containerPaths struct {
+	source string
+	build  string
+	input  string
+}
+
 func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase, tl time.Duration) (report, error) {
 	cc, err := container.New(ctx, s.client)
 	if err != nil {
@@ -99,52 +107,62 @@ func (s *Service) runTests(ctx context.Context, code string, l language.Language
 	}
 	defer cc.Flush(ctx)
 
-	path := struct {
-		source string
-		build  string
-		input  string
-	}{
+	paths := containerPaths{
 		source: fmt.Sprintf("/sandbox/solution.%s", l.Extension),
 		build:  "/sandbox/solution",
 		input:  "/sandbox/input.txt",
 	}
 
-	err = cc.WriteFile(ctx, path.source, code)
+	err = cc.WriteFile(ctx, paths.source, code)
 	if err != nil {
 		return report{}, err
 	}
 
 	tt := len(tcs)
 	if l.IsCompiled {
-		cmd, ok := language.GetCompilationCommand(l, path.source, path.build)
+		cr, ok := s.compile(ctx, cc, l, paths, tt)
 		if !ok {
-			return report{}, fmt.Errorf("no compilation command for language: %s", l.Name)
-		}
-
-		pr, err := cc.Execute(ctx, cmd)
-		if err != nil {
-			return report{}, err
-		}
-
-		if !pr.Ok {
-			return report{
-				verdict:          verdict.CE,
-				passed:           0,
-				total:            tt,
-				stderr:           pr.Stderr,
-				failedTestCase:   nil,
-				failedTestOutput: "",
-			}, nil
+			return cr, nil
 		}
 	}
 
-	cmd, ok := language.GetExecutionCommand(l, path.source, path.input, path.build)
+	return s.executeTests(ctx, cc, l, paths, tcs, tl)
+}
+
+func (s *Service) compile(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tt int) (report, bool) {
+	cmd, ok := language.GetCompilationCommand(l, paths.source, paths.build)
+	if !ok {
+		return report{}, false
+	}
+
+	pr, err := cc.Execute(ctx, cmd)
+	if err != nil {
+		return report{}, false
+	}
+
+	if !pr.Ok {
+		return report{
+			verdict:          verdict.CE,
+			passed:           0,
+			total:            tt,
+			stderr:           pr.Stderr,
+			failedTestCase:   nil,
+			failedTestOutput: "",
+		}, false
+	}
+
+	return report{}, true
+}
+
+func (s *Service) executeTests(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tcs []domain.TestCase, tl time.Duration) (report, error) {
+	cmd, ok := language.GetExecutionCommand(l, paths.source, paths.input, paths.build)
 	if !ok {
 		return report{}, fmt.Errorf("no execution command for language: %s", l.Name)
 	}
 
+	tt := len(tcs)
 	for i, tc := range tcs {
-		err = cc.WriteFile(ctx, path.input, tc.Input)
+		err := cc.WriteFile(ctx, paths.input, tc.Input)
 		if err != nil {
 			return report{}, err
 		}

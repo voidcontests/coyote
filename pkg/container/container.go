@@ -70,7 +70,10 @@ func (cc *Context) WriteFile(ctx context.Context, path string, content string) e
 	b64 := base64.StdEncoding.EncodeToString([]byte(content))
 	cmd := fmt.Sprintf("echo '%s' | base64 -d > %s", b64, path)
 	_, err := cc.Execute(ctx, cmd)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to write file to container: %w", err)
+	}
+	return nil
 }
 
 // Execute executes provided `cmd` inside the container
