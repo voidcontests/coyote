@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
+	docker "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
 // Context holds common parameters for container operations
 type Context struct {
-	client      *client.Client
+	client      *docker.Client
 	containerID string
 }
 
@@ -30,11 +30,15 @@ type ProcessResult struct {
 }
 
 // New creates and starts new docker container with security options and return attached Context
-func New(ctx context.Context, c *client.Client) (*Context, error) {
+func New(ctx context.Context, c *docker.Client) (*Context, error) {
 	secopts, err := readSecurityOpts()
 	if err != nil {
 		return nil, err
 	}
+
+	ncpus := 0.5
+	pids := int64(50)
+	memlimMB := 128
 
 	resp, err := c.ContainerCreate(ctx, &container.Config{
 		Image: "ghcr.io/voidcontests/runner:latest",
@@ -43,6 +47,12 @@ func New(ctx context.Context, c *client.Client) (*Context, error) {
 		SecurityOpt: []string{
 			fmt.Sprintf("seccomp=%s", secopts),
 		},
+		Resources: container.Resources{
+			Memory:    int64(memlimMB * 1e6),
+			NanoCPUs:  int64(ncpus * 1e9),
+			PidsLimit: &pids,
+		},
+		NetworkMode: "none",
 	}, nil, nil, "")
 
 	if err != nil {
