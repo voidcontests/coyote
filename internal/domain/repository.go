@@ -13,7 +13,7 @@ type SubmissionRepository interface {
 
 type ProblemRepository interface {
 	GetTestCases(ctx context.Context, problemID int) ([]TestCase, error)
-	GetTimeLimit(ctx context.Context, problemID int) (time.Duration, error)
+	GetConstraints(ctx context.Context, problemID int) (tl time.Duration, ml int, err error)
 }
 
 type MessageQueue interface {

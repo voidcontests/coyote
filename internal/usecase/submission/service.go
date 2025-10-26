@@ -53,12 +53,12 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		return fmt.Errorf("failed to get test cases: %w", err)
 	}
 
-	tl, err := s.problemRepo.GetTimeLimit(ctx, submission.ProblemID)
+	timeout, memoryLimitMB, err := s.problemRepo.GetConstraints(ctx, submission.ProblemID)
 	if err != nil {
 		return fmt.Errorf("failed to get time limit: %w", err)
 	}
 
-	tr, err := s.runTests(ctx, submission.Code, l, tcs, tl)
+	tr, err := s.runTests(ctx, submission.Code, l, tcs, timeout, memoryLimitMB)
 	if err != nil {
 		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Failed); err != nil {
 			slog.Error("failed to update submission verdict", logger.Err(err))
@@ -101,8 +101,8 @@ type containerPaths struct {
 	input  string
 }
 
-func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase, tl time.Duration) (report, error) {
-	cc, err := container.New(ctx, s.client)
+func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase, timeout time.Duration, memoryLimitMB int) (report, error) {
+	cc, err := container.New(ctx, s.client, memoryLimitMB)
 	if err != nil {
 		return report{}, err
 	}
@@ -127,7 +127,7 @@ func (s *Service) runTests(ctx context.Context, code string, l language.Language
 		}
 	}
 
-	return s.executeTests(ctx, cc, l, paths, tcs, tl)
+	return s.executeTests(ctx, cc, l, paths, tcs, timeout)
 }
 
 func (s *Service) compile(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tt int) (report, bool) {
@@ -155,7 +155,7 @@ func (s *Service) compile(ctx context.Context, cc *container.Context, l language
 	return report{}, true
 }
 
-func (s *Service) executeTests(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tcs []domain.TestCase, tl time.Duration) (report, error) {
+func (s *Service) executeTests(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tcs []domain.TestCase, timeout time.Duration) (report, error) {
 	cmd, ok := language.GetExecutionCommand(l, paths.source, paths.input, paths.build)
 	if !ok {
 		return report{}, fmt.Errorf("no execution command for language: %s", l.Name)
@@ -168,7 +168,7 @@ func (s *Service) executeTests(ctx context.Context, cc *container.Context, l lan
 			return report{}, err
 		}
 
-		pr, err := cc.ExecuteWithTimeout(ctx, cmd, tl)
+		pr, err := cc.ExecuteWithTimeout(ctx, cmd, timeout)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return report{
 				verdict:        verdict.TLE,

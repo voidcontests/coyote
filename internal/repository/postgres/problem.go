@@ -42,12 +42,12 @@ func (r *ProblemRepository) GetTestCases(ctx context.Context, problemID int) ([]
 	return testCases, nil
 }
 
-func (r *ProblemRepository) GetTimeLimit(ctx context.Context, problemID int) (time.Duration, error) {
+func (r *ProblemRepository) GetConstraints(ctx context.Context, problemID int) (timelimit time.Duration, memorylimit int, err error) {
 	var timeLimitMS int
-	query := `SELECT time_limit_ms FROM problems WHERE id = $1`
-	err := r.pool.QueryRow(ctx, query, problemID).Scan(&timeLimitMS)
+	query := `SELECT time_limit_ms, memory_limit_mb FROM problems WHERE id = $1`
+	err = r.pool.QueryRow(ctx, query, problemID).Scan(&timeLimitMS, &memorylimit)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get time limit: %w", err)
+		return 0, 0, fmt.Errorf("failed to get time limit: %w", err)
 	}
-	return time.Duration(timeLimitMS) * time.Millisecond, nil
+	return time.Duration(timeLimitMS) * time.Millisecond, memorylimit, nil
 }
