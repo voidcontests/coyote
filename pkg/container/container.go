@@ -15,9 +15,6 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
-// TODO: Memory limit is not very precise. If memory limit set to 256MB, and user submit solution,
-// that allocates 1000MB - it will not throw MLE, as expected
-
 // Context holds common parameters for container operations
 type Context struct {
 	client      *docker.Client
@@ -40,6 +37,7 @@ func New(ctx context.Context, c *docker.Client, memoryLimitMB int) (*Context, er
 	}
 
 	pids := int64(50)
+	memoryBytes := int64(memoryLimitMB * 1024 * 1024)
 	resp, err := c.ContainerCreate(ctx, &container.Config{
 		Image: "ghcr.io/voidcontests/runner:latest",
 		Cmd:   []string{"sleep", "3600"},
@@ -48,9 +46,10 @@ func New(ctx context.Context, c *docker.Client, memoryLimitMB int) (*Context, er
 			fmt.Sprintf("seccomp=%s", secopts),
 		},
 		Resources: container.Resources{
-			Memory:    int64(memoryLimitMB * 1e6),
-			NanoCPUs:  int64(0.5 * 1e9),
-			PidsLimit: &pids,
+			Memory:     memoryBytes,
+			MemorySwap: memoryBytes,
+			NanoCPUs:   int64(0.5 * 1e9),
+			PidsLimit:  &pids,
 		},
 		NetworkMode: "none",
 	}, nil, nil, "")
