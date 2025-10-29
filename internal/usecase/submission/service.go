@@ -53,12 +53,13 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		return fmt.Errorf("failed to get test cases: %w", err)
 	}
 
-	timeout, memoryLimitMB, err := s.problemRepo.GetConstraints(ctx, submission.ProblemID)
+	problem, err := s.problemRepo.GetByID(ctx, submission.ProblemID)
 	if err != nil {
 		return fmt.Errorf("failed to get time limit: %w", err)
 	}
 
-	tr, err := s.runTests(ctx, submission.Code, l, tcs, timeout, memoryLimitMB)
+	// extract time & memory limit, language, checker into options
+	tr, err := s.runTests(ctx, submission.Code, l, tcs, problem)
 	if err != nil {
 		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Failed); err != nil {
 			slog.Error("failed to update submission verdict", logger.Err(err))
@@ -101,8 +102,8 @@ type containerPaths struct {
 	input  string
 }
 
-func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase, timeout time.Duration, memoryLimitMB int) (report, error) {
-	cc, err := container.New(ctx, s.client, memoryLimitMB)
+func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase, problem domain.Problem) (report, error) {
+	cc, err := container.New(ctx, s.client, problem.MemoryLimitMB)
 	if err != nil {
 		return report{}, err
 	}
@@ -127,7 +128,7 @@ func (s *Service) runTests(ctx context.Context, code string, l language.Language
 		}
 	}
 
-	return s.executeTests(ctx, cc, l, paths, tcs, timeout)
+	return s.executeTests(ctx, cc, l, paths, tcs, problem)
 }
 
 func (s *Service) compile(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tt int) (report, bool) {
@@ -155,13 +156,15 @@ func (s *Service) compile(ctx context.Context, cc *container.Context, l language
 	return report{}, true
 }
 
-func (s *Service) executeTests(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tcs []domain.TestCase, timeout time.Duration) (report, error) {
+func (s *Service) executeTests(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tcs []domain.TestCase, problem domain.Problem) (report, error) {
 	cmd, ok := language.GetExecutionCommand(l, paths.source, paths.input, paths.build)
 	if !ok {
 		return report{}, fmt.Errorf("no execution command for language: %s", l.Name)
 	}
 
 	tt := len(tcs)
+	timeout := time.Millisecond * time.Duration(problem.TimeLimitMS)
+
 	for i, tc := range tcs {
 		err := cc.WriteFile(ctx, paths.input, tc.Input)
 		if err != nil {
@@ -214,7 +217,7 @@ func (s *Service) executeTests(ctx context.Context, cc *container.Context, l lan
 		}
 
 		// TODO: Introduce judge message for testing report
-		jr := judge.Tokens(pr.Stdout, tc.Output)
+		jr := judge.Check(problem.Checker, pr.Stdout, tc.Output)
 		if jr.Verdict != verdict.OK {
 			return report{
 				verdict:          jr.Verdict,

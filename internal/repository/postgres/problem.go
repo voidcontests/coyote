@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -42,12 +41,23 @@ func (r *ProblemRepository) GetTestCases(ctx context.Context, problemID int) ([]
 	return testCases, nil
 }
 
-func (r *ProblemRepository) GetConstraints(ctx context.Context, problemID int) (timelimit time.Duration, memorylimit int, err error) {
-	var timeLimitMS int
-	query := `SELECT time_limit_ms, memory_limit_mb FROM problems WHERE id = $1`
-	err = r.pool.QueryRow(ctx, query, problemID).Scan(&timeLimitMS, &memorylimit)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get time limit: %w", err)
-	}
-	return time.Duration(timeLimitMS) * time.Millisecond, memorylimit, nil
+func (r *ProblemRepository) GetByID(ctx context.Context, problemID int) (domain.Problem, error) {
+	query := `SELECT
+			p.id, p.writer_id, p.title, p.statement,
+			p.difficulty, p.time_limit_ms, p.memory_limit_mb, p.created_at,
+			u.username AS writer_username, p.checker
+		FROM problems p
+		JOIN users u ON u.id = p.writer_id
+		WHERE p.id = $1`
+
+	row := r.pool.QueryRow(ctx, query, problemID)
+
+	var problem domain.Problem
+	err := row.Scan(
+		&problem.ID, &problem.WriterID, &problem.Title, &problem.Statement,
+		&problem.Difficulty, &problem.TimeLimitMS, &problem.MemoryLimitMB, &problem.CreatedAt,
+		&problem.WriterUsername, &problem.Checker,
+	)
+
+	return problem, err
 }

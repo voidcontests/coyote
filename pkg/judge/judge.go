@@ -6,12 +6,32 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/voidcontests/coyote/internal/domain/checker"
 	"github.com/voidcontests/coyote/internal/domain/verdict"
 )
 
 type Result struct {
 	Verdict string // OK, WA or PE
 	Message string
+}
+
+func Check(chckr, actual, expected string) Result {
+	switch chckr {
+	case checker.Full:
+		return Strict(actual, expected)
+	case checker.Floats4:
+		return Floats4(actual, expected)
+	case checker.Floats6:
+		return Floats6(actual, expected)
+	case checker.Floats9:
+		return Floats9(actual, expected)
+	case checker.Integers:
+		return Integers(actual, expected)
+	case checker.Yesno:
+		return Yesno(actual, expected)
+	default: // fallback to default one if unknow - tokens
+		return Tokens(actual, expected)
+	}
 }
 
 func Tokens(actual, expected string) Result {
@@ -37,7 +57,7 @@ func Tokens(actual, expected string) Result {
 	return Result{Verdict: verdict.OK, Message: fmt.Sprintf("%d token(s)", len(actualTokens))}
 }
 
-func Integer(actual, expected string) Result {
+func Integers(actual, expected string) Result {
 	actualNums, err1 := parseIntegers(actual)
 	expectedNums, err2 := parseIntegers(expected)
 
@@ -113,18 +133,36 @@ func Yesno(actual, expected string) Result {
 		}
 	}
 
-	for i := range actualTokens {
-		actual := actualTokens[i]
-		expected := expectedTokens[i]
+	normalize := func(token string) string {
+		switch token {
+		case "Y":
+			return "YES"
+		case "N":
+			return "NO"
+		case "YES":
+			return "YES"
+		case "NO":
+			return "NO"
+		default:
+			return token
+		}
+	}
 
-		if actual != "YES" && actual != "NO" {
-			return Result{Verdict: verdict.PE, Message: fmt.Sprintf("Token %d: expected YES or NO, found %q", i+1, actual)}
+	for i := range actualTokens {
+		actualNorm := normalize(actualTokens[i])
+		expectedNorm := normalize(expectedTokens[i])
+
+		if actualNorm != "YES" && actualNorm != "NO" {
+			return Result{
+				Verdict: verdict.PE,
+				Message: fmt.Sprintf("Token %d: expected YES or NO (or Y/N), found %q", i+1, actualTokens[i]),
+			}
 		}
 
-		if actual != expected {
+		if actualNorm != expectedNorm {
 			return Result{
 				Verdict: verdict.WA,
-				Message: fmt.Sprintf("Token %d: expected %s, found %s", i+1, expected, actual),
+				Message: fmt.Sprintf("Token %d: expected %s, found %s", i+1, expectedTokens[i], actualTokens[i]),
 			}
 		}
 	}

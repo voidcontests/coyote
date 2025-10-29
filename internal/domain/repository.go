@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"time"
 )
 
 type SubmissionRepository interface {
@@ -13,7 +12,7 @@ type SubmissionRepository interface {
 
 type ProblemRepository interface {
 	GetTestCases(ctx context.Context, problemID int) ([]TestCase, error)
-	GetConstraints(ctx context.Context, problemID int) (tl time.Duration, ml int, err error)
+	GetByID(ctx context.Context, problemID int) (Problem, error)
 }
 
 type MessageQueue interface {
