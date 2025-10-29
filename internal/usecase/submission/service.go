@@ -22,7 +22,7 @@ import (
 type Service struct {
 	submissionRepo domain.SubmissionRepository
 	problemRepo    domain.ProblemRepository
-	client         *docker.Client // TODO: Try to remove this direct dependency on *docker.Client
+	client         *docker.Client
 }
 
 func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemRepository, dc *docker.Client) *Service {
@@ -58,8 +58,22 @@ func (s *Service) ProcessSubmission(ctx context.Context, submission domain.Submi
 		return fmt.Errorf("failed to get time limit: %w", err)
 	}
 
+	opts := options{
+		language:      l,
+		code:          submission.Code,
+		tests:         tcs,
+		timeLimit:     time.Duration(problem.TimeLimitMS) * time.Millisecond,
+		memoryLimitMB: problem.MemoryLimitMB,
+		checker:       problem.Checker,
+		paths: contpaths{
+			source: fmt.Sprintf("/sandbox/solution.%s", l.Extension),
+			build:  "/sandbox/solution",
+			input:  "/sandbox/input.txt",
+		},
+	}
+
 	// extract time & memory limit, language, checker into options
-	tr, err := s.runTests(ctx, submission.Code, l, tcs, problem)
+	tr, err := s.runTests(ctx, opts)
 	if err != nil {
 		if err := s.submissionRepo.UpdateVerdictAndStatus(ctx, submission.ID, verdict.IE, status.Failed); err != nil {
 			slog.Error("failed to update submission verdict", logger.Err(err))
@@ -96,43 +110,46 @@ type report struct {
 	failedTestOutput string
 }
 
-type containerPaths struct {
+type contpaths struct {
 	source string
 	build  string
 	input  string
 }
 
-func (s *Service) runTests(ctx context.Context, code string, l language.Language, tcs []domain.TestCase, problem domain.Problem) (report, error) {
-	cc, err := container.New(ctx, s.client, problem.MemoryLimitMB)
+type options struct {
+	language      language.Language
+	code          string
+	tests         []domain.TestCase
+	timeLimit     time.Duration
+	memoryLimitMB int
+	checker       string
+	paths         contpaths
+}
+
+func (s *Service) runTests(ctx context.Context, opts options) (report, error) {
+	cc, err := container.New(ctx, s.client, opts.memoryLimitMB)
 	if err != nil {
 		return report{}, err
 	}
 	defer cc.Flush(ctx)
 
-	paths := containerPaths{
-		source: fmt.Sprintf("/sandbox/solution.%s", l.Extension),
-		build:  "/sandbox/solution",
-		input:  "/sandbox/input.txt",
-	}
-
-	err = cc.WriteFile(ctx, paths.source, code)
+	err = cc.WriteFile(ctx, opts.paths.source, opts.code)
 	if err != nil {
 		return report{}, err
 	}
 
-	tt := len(tcs)
-	if l.IsCompiled {
-		cr, ok := s.compile(ctx, cc, l, paths, tt)
+	if opts.language.IsCompiled {
+		cr, ok := s.compile(ctx, cc, opts)
 		if !ok {
 			return cr, nil
 		}
 	}
 
-	return s.executeTests(ctx, cc, l, paths, tcs, problem)
+	return s.executeTests(ctx, cc, opts)
 }
 
-func (s *Service) compile(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tt int) (report, bool) {
-	cmd, ok := language.GetCompilationCommand(l, paths.source, paths.build)
+func (s *Service) compile(ctx context.Context, cc *container.Context, opts options) (report, bool) {
+	cmd, ok := language.GetCompilationCommand(opts.language, opts.paths.source, opts.paths.build)
 	if !ok {
 		return report{}, false
 	}
@@ -146,7 +163,7 @@ func (s *Service) compile(ctx context.Context, cc *container.Context, l language
 		return report{
 			verdict:          verdict.CE,
 			passed:           0,
-			total:            tt,
+			total:            len(opts.tests),
 			stderr:           pr.Stderr,
 			failedTestCase:   nil,
 			failedTestOutput: "",
@@ -156,22 +173,20 @@ func (s *Service) compile(ctx context.Context, cc *container.Context, l language
 	return report{}, true
 }
 
-func (s *Service) executeTests(ctx context.Context, cc *container.Context, l language.Language, paths containerPaths, tcs []domain.TestCase, problem domain.Problem) (report, error) {
-	cmd, ok := language.GetExecutionCommand(l, paths.source, paths.input, paths.build)
+func (s *Service) executeTests(ctx context.Context, cc *container.Context, opts options) (report, error) {
+	cmd, ok := language.GetExecutionCommand(opts.language, opts.paths.source, opts.paths.input, opts.paths.build)
 	if !ok {
-		return report{}, fmt.Errorf("no execution command for language: %s", l.Name)
+		return report{}, fmt.Errorf("no execution command for language: %s", opts.language.Name)
 	}
 
-	tt := len(tcs)
-	timeout := time.Millisecond * time.Duration(problem.TimeLimitMS)
-
-	for i, tc := range tcs {
-		err := cc.WriteFile(ctx, paths.input, tc.Input)
+	tt := len(opts.tests)
+	for i, tc := range opts.tests {
+		err := cc.WriteFile(ctx, opts.paths.input, tc.Input)
 		if err != nil {
 			return report{}, err
 		}
 
-		pr, err := cc.ExecuteWithTimeout(ctx, cmd, timeout)
+		pr, err := cc.ExecuteWithTimeout(ctx, cmd, opts.timeLimit)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return report{
 				verdict:        verdict.TLE,
@@ -217,7 +232,7 @@ func (s *Service) executeTests(ctx context.Context, cc *container.Context, l lan
 		}
 
 		// TODO: Introduce judge message for testing report
-		jr := judge.Check(problem.Checker, pr.Stdout, tc.Output)
+		jr := judge.Check(opts.checker, pr.Stdout, tc.Output)
 		if jr.Verdict != verdict.OK {
 			return report{
 				verdict:          jr.Verdict,
