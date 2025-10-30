@@ -1,30 +1,21 @@
 package domain
 
-import "context"
+import (
+	"context"
+)
 
 type SubmissionRepository interface {
-	UpdateVerdict(context.Context, int32, string, int32, string) error
-	CreateFailedTest(context.Context, int32, string, string, string) error
+	UpdateVerdictAndStatus(ctx context.Context, submissionID int, verdict string, status string) error
+	UpdateStatus(ctx context.Context, submissionID int, status string) error
+	CreateTestingReportAndComplete(ctx context.Context, report *TestingReport, status string, verdict string) error
 }
 
 type ProblemRepository interface {
-	GetTestCases(context.Context, int32) ([]TestCase, error)
+	GetTestCases(ctx context.Context, problemID int) ([]TestCase, error)
+	GetByID(ctx context.Context, problemID int) (Problem, error)
 }
 
 type MessageQueue interface {
-	Subscribe(context.Context, string) (<-chan Submission, error)
+	Subscribe(ctx context.Context, channel string) (<-chan Submission, error)
 	Close() error
-}
-
-type Runner interface {
-	Execute(ExecutionRequest) (ExecutionReport, error)
-	Cleanup(string) error
-}
-
-type LanguageProvider interface {
-	GetLanguage(string) (Language, error)
-}
-
-type OutputMatcher interface {
-	Match(string, string) bool
 }

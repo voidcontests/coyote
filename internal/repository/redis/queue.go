@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/redis/go-redis/v9"
+
 	"github.com/voidcontests/coyote/internal/config"
 	"github.com/voidcontests/coyote/internal/domain"
+	"github.com/voidcontests/coyote/pkg/logger"
 )
 
 type MessageQueue struct {
@@ -51,6 +54,7 @@ func (mq *MessageQueue) Subscribe(ctx context.Context, channel string) (<-chan d
 
 				var submission domain.Submission
 				if err := json.Unmarshal([]byte(msg.Payload), &submission); err != nil {
+					slog.Error("failed to unmarshal submission message", logger.Err(err))
 					continue
 				}
 
@@ -73,4 +77,11 @@ func (mq *MessageQueue) Close() error {
 		}
 	}
 	return mq.client.Close()
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

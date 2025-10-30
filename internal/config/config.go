@@ -3,6 +3,7 @@ package config
 import (
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
@@ -23,7 +24,9 @@ type Config struct {
 }
 
 type HTTP struct {
-	Port string `yaml:"port" env-default:"7197"`
+	Port        string        `yaml:"port" env-default:"7197"`
+	Timeout     time.Duration `yaml:"timeout" env-default:"3s"`
+	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"30s"`
 }
 
 type Postgres struct {

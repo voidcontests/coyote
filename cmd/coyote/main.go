@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,17 +11,17 @@ import (
 	"syscall"
 	"time"
 
+	docker "github.com/docker/docker/client"
+
 	"github.com/voidcontests/coyote/internal/config"
 	httpdelivery "github.com/voidcontests/coyote/internal/delivery/http"
-	"github.com/voidcontests/coyote/internal/delivery/queue"
+	qdelivery "github.com/voidcontests/coyote/internal/delivery/queue"
 	"github.com/voidcontests/coyote/internal/repository/postgres"
 	"github.com/voidcontests/coyote/internal/repository/redis"
 	"github.com/voidcontests/coyote/internal/usecase/submission"
 	"github.com/voidcontests/coyote/internal/version"
-	"github.com/voidcontests/coyote/pkg/language"
+	"github.com/voidcontests/coyote/pkg/container"
 	"github.com/voidcontests/coyote/pkg/logger"
-	"github.com/voidcontests/coyote/pkg/matcher"
-	"github.com/voidcontests/coyote/pkg/runner"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 	log := logger.Setup(c.Env, logLevel)
 	slog.SetDefault(log)
 
-	slog.Info("runner: starting...", slog.String("env", c.Env), version.CommitAttr, version.BranchAttr)
+	slog.Info("coyote: starting...", slog.String("env", c.Env), version.CommitAttr, version.BranchAttr)
 
 	pool, err := postgres.NewPool(c.Postgres)
 	if err != nil {
@@ -46,29 +47,34 @@ func main() {
 	submissionRepo := postgres.NewSubmissionRepository(pool)
 	problemRepo := postgres.NewProblemRepository(pool)
 
-	messageQueue := redis.NewMessageQueue(c.Redis)
-	defer messageQueue.Close()
+	mq := redis.NewMessageQueue(c.Redis)
+	defer mq.Close()
 
-	codeRunner := runner.New(c.Runner.DockerImage)
-	languageProvider := language.NewProvider()
-	outputMatcher := matcher.NewOutputMatcher()
-
-	submissionService := submission.New(
-		submissionRepo,
-		problemRepo,
-		codeRunner,
-		languageProvider,
-		outputMatcher,
+	dc, err := docker.NewClientWithOpts(
+		docker.WithHost(docker.DefaultDockerHost),
+		docker.WithAPIVersionNegotiation(),
 	)
+	if err != nil {
+		slog.Error("docker: could not init client", logger.Err(err))
+		os.Exit(1)
+	}
 
-	queueHandler := queue.NewHandler(submissionService, messageQueue)
+	containerProvider := container.NewProvider(dc, c.Runner.DockerImage)
+
+	ss := submission.New(submissionRepo, problemRepo, containerProvider)
+
+	queueHandler := qdelivery.NewHandler(ss, mq)
 	defer queueHandler.Close()
 
 	httpHandler := httpdelivery.NewHandler()
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%s", c.HTTP.Port),
-		Handler: httpHandler,
+		Addr:              fmt.Sprintf(":%s", c.HTTP.Port),
+		Handler:           httpHandler,
+		ReadHeaderTimeout: c.HTTP.Timeout,
+		ReadTimeout:       c.HTTP.Timeout,
+		WriteTimeout:      c.HTTP.Timeout,
+		IdleTimeout:       c.HTTP.IdleTimeout,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -76,7 +82,7 @@ func main() {
 
 	errs := make(chan error, 1)
 	go func() {
-		if err := queueHandler.Listen(ctx, c.Runner.Channel); err != nil && err != context.Canceled {
+		if err := queueHandler.Listen(ctx, c.Runner.Channel); err != nil && !errors.Is(err, context.Canceled) {
 			errs <- err
 		}
 	}()
@@ -88,30 +94,30 @@ func main() {
 		}
 	}()
 
-	slog.Info("runner: listening for submissions...", slog.String("channel", c.Runner.Channel))
+	slog.Info("coyote: listening for submissions...", slog.String("channel", c.Runner.Channel))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	select {
-	case <-quit:
-		slog.Info("runner: received shutdown signal")
+	case s := <-quit:
+		slog.Info("coyote: received shutdown signal", slog.String("signal", s.String()))
 	case err := <-errs:
-		slog.Error("runner: fatal error", logger.Err(err))
+		slog.Error("coyote: fatal error", logger.Err(err))
 	}
 
 	cancel()
-	slog.Info("runner: shutting down...")
+	slog.Info("coyote: shutting down...")
 
 	// shadow previous context to shutdown context
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		slog.Error("http: server shutdown error", logger.Err(err))
+		slog.Error("http: error happened while shutting down the server", logger.Err(err))
 	} else {
 		slog.Info("http: server stopped")
 	}
 
-	slog.Info("runner: stopped")
+	slog.Info("coyote: stopped")
 }

@@ -11,21 +11,21 @@ import (
 )
 
 type Handler struct {
-	submissionService *submission.Service
-	messageQueue      domain.MessageQueue
+	ss *submission.Service
+	mq domain.MessageQueue
 }
 
-func NewHandler(submissionService *submission.Service, messageQueue domain.MessageQueue) *Handler {
+func NewHandler(ss *submission.Service, mq domain.MessageQueue) *Handler {
 	return &Handler{
-		submissionService: submissionService,
-		messageQueue:      messageQueue,
+		ss: ss,
+		mq: mq,
 	}
 }
 
 func (h *Handler) Listen(ctx context.Context, channel string) error {
 	slog.Info("starting to listen for submissions", slog.String("channel", channel))
 
-	submissionChan, err := h.messageQueue.Subscribe(ctx, channel)
+	submissionChan, err := h.mq.Subscribe(ctx, channel)
 	if err != nil {
 		return fmt.Errorf("subscribe to queue: %w", err)
 	}
@@ -37,10 +37,12 @@ func (h *Handler) Listen(ctx context.Context, channel string) error {
 			return ctx.Err()
 		case submission, ok := <-submissionChan:
 			if !ok {
-				return fmt.Errorf("submission channel closed")
+				return fmt.Errorf("submission channel closed unexpectedly while listening for submissions on channel %q", channel)
 			}
 
-			err := h.submissionService.ProcessSubmission(ctx, submission)
+			slog.Debug("processing submission", slog.Int("submission_id", int(submission.ID)))
+
+			err := h.ss.ProcessSubmission(ctx, submission)
 			if err != nil {
 				slog.Error("failed to process submission", slog.Int("submission_id", int(submission.ID)), logger.Err(err))
 				continue
@@ -52,5 +54,5 @@ func (h *Handler) Listen(ctx context.Context, channel string) error {
 }
 
 func (h *Handler) Close() error {
-	return h.messageQueue.Close()
+	return h.mq.Close()
 }

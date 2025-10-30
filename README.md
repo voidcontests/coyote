@@ -47,9 +47,9 @@ The service expects submission messages from Redis with the following structure:
 
 ```go
 type Submission struct {
-    ID        int32
-    EntryID   int32
-    ProblemID int32
+    ID        int
+    EntryID   int
+    ProblemID int
     Code      string
     Language  string
 }

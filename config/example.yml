@@ -17,5 +17,5 @@ redis:
   db: 0
 
 runner:
-  docker_image: "ghcr.io/voidcontests/runner"
+  docker_image: "ghcr.io/voidcontests/runner:latest"
   channel: "submissions"

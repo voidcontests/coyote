@@ -3,29 +3,31 @@ package domain
 import "time"
 
 type Submission struct {
-	ID               int32
-	EntryID          int32
-	ProblemID        int32
-	Verdict          string
-	Answer           string
-	Code             string
-	Language         string
-	PassedTestsCount int32
-	Stderr           string
-	CreatedAt        time.Time
+	ID        int       `db:"id"`
+	EntryID   int       `db:"entry_id"`
+	ProblemID int       `db:"problem_id"`
+	Status    string    `db:"status"`
+	Verdict   string    `db:"verdict"`
+	Code      string    `db:"code"`
+	Language  string    `db:"language"`
+	CreatedAt time.Time `db:"created_at"`
+}
+
+type TestingReport struct {
+	ID                    int       `db:"id"`
+	SubmissionID          int       `db:"submission_id"`
+	PassedTestsCount      int       `db:"passed_tests_count"`
+	TotalTestsCount       int       `db:"total_tests_count"`
+	FirstFailedTestID     *int      `db:"first_failed_test_id"`
+	FirstFailedTestOutput *string   `db:"first_failed_test_output"`
+	Stderr                string    `db:"stderr"`
+	CreatedAt             time.Time `db:"created_at"`
 }
 
 type TestCase struct {
-	ID        int32
-	ProblemID int32
+	ID        int
+	ProblemID int
 	Input     string
 	Output    string
 	IsExample bool
-}
-
-type FailedTest struct {
-	SubmissionID   int32
-	Input          string
-	ExpectedOutput string
-	ActualOutput   string
 }
