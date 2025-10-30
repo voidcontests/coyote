@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	docker "github.com/docker/docker/client"
-
 	"github.com/voidcontests/coyote/internal/domain"
 	"github.com/voidcontests/coyote/internal/domain/status"
 	"github.com/voidcontests/coyote/internal/domain/verdict"
@@ -20,16 +18,16 @@ import (
 )
 
 type Service struct {
-	submissionRepo domain.SubmissionRepository
-	problemRepo    domain.ProblemRepository
-	client         *docker.Client
+	submissionRepo    domain.SubmissionRepository
+	problemRepo       domain.ProblemRepository
+	containerProvider container.Provider
 }
 
-func New(submissionRepo domain.SubmissionRepository, problemRepo domain.ProblemRepository, dc *docker.Client) *Service {
+func New(sr domain.SubmissionRepository, pr domain.ProblemRepository, cp container.Provider) *Service {
 	return &Service{
-		submissionRepo: submissionRepo,
-		problemRepo:    problemRepo,
-		client:         dc,
+		submissionRepo:    sr,
+		problemRepo:       pr,
+		containerProvider: cp,
 	}
 }
 
@@ -127,7 +125,7 @@ type options struct {
 }
 
 func (s *Service) runTests(ctx context.Context, opts options) (report, error) {
-	cc, err := container.New(ctx, s.client, opts.memoryLimitMB)
+	cc, err := s.containerProvider.CreateContainer(ctx, opts.memoryLimitMB)
 	if err != nil {
 		return report{}, err
 	}

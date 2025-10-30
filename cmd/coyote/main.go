@@ -20,6 +20,7 @@ import (
 	"github.com/voidcontests/coyote/internal/repository/redis"
 	"github.com/voidcontests/coyote/internal/usecase/submission"
 	"github.com/voidcontests/coyote/internal/version"
+	"github.com/voidcontests/coyote/pkg/container"
 	"github.com/voidcontests/coyote/pkg/logger"
 )
 
@@ -58,7 +59,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	ss := submission.New(submissionRepo, problemRepo, dc)
+	containerProvider := container.NewProvider(dc, c.Runner.DockerImage)
+
+	ss := submission.New(submissionRepo, problemRepo, containerProvider)
 
 	queueHandler := qdelivery.NewHandler(ss, mq)
 	defer queueHandler.Close()

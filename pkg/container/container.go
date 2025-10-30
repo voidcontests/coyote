@@ -15,6 +15,22 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
+type Provider interface {
+	CreateContainer(ctx context.Context, memoryLimitMB int) (*Context, error)
+}
+
+type provider struct {
+	client *docker.Client
+	image  string
+}
+
+func NewProvider(client *docker.Client, image string) Provider {
+	return &provider{
+		client: client,
+		image:  image,
+	}
+}
+
 // Context holds common parameters for container operations
 type Context struct {
 	client      *docker.Client
@@ -30,7 +46,7 @@ type ProcessResult struct {
 }
 
 // New creates and starts new docker container with security options and return attached Context
-func New(ctx context.Context, c *docker.Client, memoryLimitMB int) (*Context, error) {
+func (p *provider) CreateContainer(ctx context.Context, memoryLimitMB int) (*Context, error) {
 	secopts, err := readSecurityOpts()
 	if err != nil {
 		return nil, err
@@ -38,8 +54,8 @@ func New(ctx context.Context, c *docker.Client, memoryLimitMB int) (*Context, er
 
 	pids := int64(50)
 	memoryBytes := int64(memoryLimitMB * 1024 * 1024)
-	resp, err := c.ContainerCreate(ctx, &container.Config{
-		Image: "ghcr.io/voidcontests/runner:latest",
+	resp, err := p.client.ContainerCreate(ctx, &container.Config{
+		Image: p.image,
 		Cmd:   []string{"sleep", "3600"},
 	}, &container.HostConfig{
 		SecurityOpt: []string{
@@ -58,13 +74,13 @@ func New(ctx context.Context, c *docker.Client, memoryLimitMB int) (*Context, er
 		return nil, fmt.Errorf("failed to create container: %w", err)
 	}
 
-	err = c.ContainerStart(ctx, resp.ID, container.StartOptions{})
+	err = p.client.ContainerStart(ctx, resp.ID, container.StartOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
 	return &Context{
-		client:      c,
+		client:      p.client,
 		containerID: resp.ID,
 	}, nil
 }
