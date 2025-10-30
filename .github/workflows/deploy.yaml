@@ -5,10 +5,15 @@ on:
     branches:
       - master
       - dev
+    tags:
+      - '*'
 
 jobs:
   build-image:
     runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: ghcr.io/voidcontests/coyote
 
     steps:
       - name: Checkout code
@@ -22,20 +27,8 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build and push image
-        run: |
-          SHORT_SHA=${GITHUB_SHA::7}
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-
-          docker build -t ghcr.io/voidcontests/coyote:$SHORT_SHA \
-            -t ghcr.io/voidcontests/coyote:$BRANCH_NAME .
-
-          if [[ "$BRANCH_NAME" == "master" || "$BRANCH_NAME" == "dev" ]]; then
-            docker push ghcr.io/voidcontests/coyote:$SHORT_SHA
-          fi
-
-          docker push ghcr.io/voidcontests/coyote:$BRANCH_NAME
-
-          if [[ "$BRANCH_NAME" == "master" ]]; then
-            docker tag ghcr.io/voidcontests/coyote:$SHORT_SHA ghcr.io/voidcontests/coyote:latest
-            docker push ghcr.io/voidcontests/coyote:latest
-          fi
+        run: curl -sSL https://raw.githubusercontent.com/voidcontests/infra/refs/heads/master/push-image.sh | bash -s -- $IMAGE_NAME
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
